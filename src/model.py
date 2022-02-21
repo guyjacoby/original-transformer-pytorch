@@ -25,6 +25,7 @@ class Transformer(nn.Module):
         self.output_generator = OutputGenerator()
 
     def forward(self, ):
+        return
 
 
 class Encoder(nn.Module):
@@ -39,12 +40,14 @@ class Encoder(nn.Module):
 
         return src_encoding
 
+
 class EncoderLayer(nn.Module):
     def __init__(self, model_dimension, mha, ffn, dropout):
         super().__init__()
         self.mha_sublayer = Sublayer(module=mha)
         self.feed_forward_sublayer = Sublayer(module=)
     def forward(self):
+        return
 
 
 class Decoder(nn.Module):
@@ -53,12 +56,15 @@ class Decoder(nn.Module):
         self.decoder_stack = get_copies(decoder_layer, num_of_layers)
 
     def forward(self, ):
+        return
+
 
 class DecoderLayer(nn.Module):
     def __init__(self):
         super().__init__()
 
     def forward(self):
+        return
 
 
 class Sublayer(nn.Module):
@@ -67,6 +73,7 @@ class Sublayer(nn.Module):
         self.module = module
 
     def forward(self):
+        return
 
 
 class MultiHeadAttention(nn.Module):
@@ -74,6 +81,7 @@ class MultiHeadAttention(nn.Module):
         super().__init__()
 
     def forward(self):
+        return
 
 
 class FeedForwardNet(nn.Module):
@@ -82,14 +90,7 @@ class FeedForwardNet(nn.Module):
         self.linear1 = nn.Linear()
 
     def forward(self):
-
-
-
-class Sublayer(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self):
+        return
 
 
 class OutputGenerator(nn.Module):
@@ -99,6 +100,18 @@ class OutputGenerator(nn.Module):
         self.softmax = nn.LogSoftmax(dim=-1)
 
     def forward(self):
+        return
+
+
+class Embedding(nn.Module):
+    def __init__(self, vocab_size, model_dimension):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, model_dimension)
+        self.scaling_factor = math.sqrt(model_dimension)
+
+    def forward(self, token_ids):
+        embeddings = self.embedding(token_ids)
+        return embeddings * self.scaling_factor
 
 
 class PositionalEncoding(nn.Module):
@@ -107,8 +120,10 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def frequency_calc(self):
+        pass
 
     def forward(self, ):
+        return
 
 
 def get_copies(module, num_of_copies):
