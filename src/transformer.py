@@ -102,6 +102,7 @@ class FeedForwardNet(nn.Module):
 
     def forward(self, input):
         output = self.ff(input)
+
         return output
 
 
