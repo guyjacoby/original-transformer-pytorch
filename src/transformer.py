@@ -10,6 +10,7 @@ class Transformer(nn.Module):
 
         encoder_layer = EncoderLayer(model_dimension, num_of_attn_heads, ff_dimension, dropout)
         decoder_layer = DecoderLayer(model_dimension, num_of_attn_heads, ff_dimension, dropout)
+
         self.encoder = Encoder(encoder_layer, num_of_layers)
         self.decoder = Decoder(decoder_layer, num_of_layers)
 
@@ -56,7 +57,7 @@ class Decoder(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self):
+    def __init__(self, model_dimension, mha, ffn, dropout):
         super().__init__()
 
     def forward(self):
@@ -75,7 +76,7 @@ class Sublayer(nn.Module):
         self.norm = nn.LayerNorm(model_dimension)
 
     def forward(self, input):
-        output = input + nn.module(input)
+        output = input + self.module(input)
         output = self.norm(output)
         return output
 
@@ -83,6 +84,8 @@ class Sublayer(nn.Module):
 class MultiHeadAttention(nn.Module):
     def __init__(self, num_of_attn_heads):
         super().__init__()
+
+    def attention(self, queries, keys, values):
 
     def forward(self):
         return
