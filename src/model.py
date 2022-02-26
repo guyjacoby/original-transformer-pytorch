@@ -1,19 +1,11 @@
+import math
 import torch
 import torch.nn as nn
 from transformer import Transformer
 
 
 class Model(nn.Module):
-    def __init__(
-        self,
-        model_dimension=512,
-        num_of_layers=6,
-        num_of_attn_heads=8,
-        ff_dimension=2048,
-        dropout=0.1,
-        activation="relu",
-    ):
-
+    def __init__(self, model_dimension=512, num_of_layers=6, num_of_attn_heads=8, ff_dimension=2048, dropout=0.1):
         super().__init__()
 
         self.src_embedding = Embedding(src_vocab_size, model_dimension)
@@ -22,16 +14,9 @@ class Model(nn.Module):
         self.src_positional_embedding = PositionalEncoding(model_dimension, dropout)
         self.tgt_positional_embedding = PositionalEncoding(model_dimension, dropout)
 
-        self.transformer = Transformer(
-            model_dimension,
-            num_of_layers,
-            num_of_attn_heads,
-            ff_dimension,
-            dropout,
-            activation,
-        )
+        self.transformer = Transformer(model_dimension, num_of_layers, num_of_attn_heads, ff_dimension, dropout)
 
-    def forward(self):
+    def forward(self, src, src_mask, tgt, tgt_mask):
         return
 
 
@@ -42,9 +27,9 @@ class Embedding(nn.Module):
         self.scaling_factor = math.sqrt(model_dimension)
 
     def forward(self, token_ids):
-        assert (
-            token_ids.ndim == 2
-        ), f"Expected 2 dimensions for batch token ids (batch size, max sequence length), got {token_ids.shape}"
+        assert token_ids.ndim == 2, (
+            f"Expected 2 dimensions for batch token ids (batch size, max sequence length), got {token_ids.shape}"
+        )
 
         embeddings = self.embedding(token_ids)
 
@@ -58,9 +43,7 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         self.pos = torch.arange(max_sequence_size).reshape(-1, 1)
-        self.div_freq = torch.exp(
-            torch.arange(0, model_dimension, 2) / model_dimension * math.log(1e4)
-        )
+        self.div_freq = torch.exp(torch.arange(0, model_dimension, 2) / model_dimension * math.log(1e4))
 
         # initialize positional encoding (pe) tensor
         self.pe = torch.zeros((max_sequence_size, model_dimension))
@@ -70,6 +53,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, embeddings):
         assert self.pe.shape == embeddings.shape[1:], (
             f"Mismatch between positional encoding tensor shape {self.pe.shape} and "
-            f"embeddings shape (without batch dim) {embeddings.shape[1:].shape} "
+            f"embeddings shape (without batch dim) {embeddings.shape[1:].shape}"
         )
-        return embeddings + self.pe
+
+        return self.dropout(embeddings + self.pe)
