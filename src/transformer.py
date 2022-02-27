@@ -125,12 +125,19 @@ class MultiHeadAttention(nn.Module):
             f'of the number of attention heads {num_of_attn_heads}'
         )
 
-        self.linear_projections =
+        self.query_proj = nn.Linear(model_dimension, model_dimension)
+        self.key_proj = nn.Linear(model_dimension, model_dimension)
+        self.value_proj = nn.Linear(model_dimension, model_dimension)
+        self.output_proj = nn.Linear(model_dimension, model_dimension)
+
+        # self.dropout = nn.Dropout(dropout) # Not using atm. Wasn't in paper
 
     def attention(self, query, key, value, mask):
         return
 
     def forward(self, query, key, value, mask):
+
+
         return
 
 
