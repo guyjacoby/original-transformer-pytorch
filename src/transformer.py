@@ -1,4 +1,7 @@
 import copy
+import math
+
+import torch
 import torch.nn as nn
 
 
@@ -113,7 +116,7 @@ class DecoderLayer(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, model_dim, attn_heads, dropout=None):
+    def __init__(self, model_dim, attn_heads, get_attn_weights=False, dropout=None):
         super().__init__()
 
         assert model_dim % attn_heads == 0, (
@@ -121,6 +124,7 @@ class MultiHeadAttention(nn.Module):
             f'of the number of attention heads {attn_heads}'
         )
 
+        self.model_dim = model_dim
         self.attn_heads = attn_heads
         self.head_dim = model_dim // attn_heads
 
@@ -128,12 +132,31 @@ class MultiHeadAttention(nn.Module):
         self.key_proj = nn.Linear(model_dim, model_dim)
         self.value_proj = nn.Linear(model_dim, model_dim)
         self.output_proj = nn.Linear(model_dim, model_dim)
+        self.softmax = nn.Softmax(dim=-1)
 
-        self.dropout = nn.Dropout(dropout)  # Wasn't in original paper
+        # For retrieving attention weights
+        self.get_attn_weights = get_attn_weights
+        self.attn_weights = None
+
+        # Origin paper did not have dropout for the attention weights, but I've seen others try it
+        if dropout is not None:
+            self.dropout = nn.Dropout(dropout)
+            self.attn_dropout = True
 
     def attention(self, query, key, value, mask):
+        attn_weights = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.head_dim)
 
-        return
+        if mask is not None:
+            attn_weights.masked_fill_(mask, float('inf'))
+
+        attn_weights = self.softmax(attn_weights)
+
+        if self.attn_dropout is True:
+            attn_weights = self.dropout(attn_weights)
+
+        attn_output = torch.matmul(attn_weights, value)
+
+        return attn_output, attn_weights
 
     def forward(self, query, key, value, mask):
         batch_size = query.shape[0]
@@ -148,9 +171,17 @@ class MultiHeadAttention(nn.Module):
         key = key.reshape(batch_size, -1, self.attn_heads, self.head_dim).transpose(1, 2)
         value = value.reshape(batch_size, -1, self.attn_heads, self.head_dim).transpose(1, 2)
 
-        attn_output = self.attention(query, key, value, mask)
+        attn_output, attn_weights = self.attention(query, key, value, mask)
 
-        return
+        if self.get_attn_weights is True:
+            self.attn_weights = attn_weights
+
+        # Reshape the multi-head projections back into original shape for output projection
+        mha_output = attn_output.transpose(1, 2).reshape(batch_size, -1, self.model_dim)
+
+        token_representations = self.output_proj(mha_output)
+
+        return token_representations
 
 
 class FeedForwardNet(nn.Module):
