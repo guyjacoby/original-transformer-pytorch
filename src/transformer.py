@@ -15,11 +15,12 @@ class Transformer(nn.Module):
         self.encoder = Encoder(encoder_layer, num_of_layers)
         self.decoder = Decoder(decoder_layer, num_of_layers)
 
+        # Initialize parameters READ WHICH INITIALIZATION!!!
+
     def forward(self, src, src_mask, tgt, tgt_mask):
         src = self.encoder(src, src_mask)
         tgt = self.decoder(src, src_mask, tgt, tgt_mask)
-        output = self.output_generator(tgt)
-        return output
+        return tgt
 
 
 ################################
