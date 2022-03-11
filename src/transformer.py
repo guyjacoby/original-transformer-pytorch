@@ -116,7 +116,7 @@ class DecoderLayer(nn.Module):
 
 
 #####################################
-### Auxiliary transformer modules ###
+### Encoder/Decoder layer modules ###
 #####################################
 
 
