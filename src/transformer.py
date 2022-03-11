@@ -1,6 +1,5 @@
 import copy
 import math
-
 import torch
 import torch.nn as nn
 
@@ -15,12 +14,17 @@ class Transformer(nn.Module):
         self.encoder = Encoder(encoder_layer, num_of_layers)
         self.decoder = Decoder(decoder_layer, num_of_layers)
 
-        # Initialize parameters READ WHICH INITIALIZATION!!!
+        self._initialize_parameters()
 
-    def forward(self, src, src_mask, tgt, tgt_mask):
+    def forward(self, src, tgt, src_mask, tgt_mask):
         src = self.encoder(src, src_mask)
-        tgt = self.decoder(src, src_mask, tgt, tgt_mask)
+        tgt = self.decoder(src, tgt, src_mask, tgt_mask)
         return tgt
+
+    def _initialize_parameters(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.kaiming_uniform_(p)
 
 
 ################################
@@ -142,17 +146,23 @@ class MultiHeadAttention(nn.Module):
         # Origin paper did not have dropout for the attention weights, but I've seen others try it
         if dropout is not None:
             self.dropout = nn.Dropout(dropout)
-            self.attn_dropout = True
+        else:
+            self.dropout = dropout
 
     def attention(self, query, key, value, mask):
+
+        # scaled dot-product attention
         attn_weights = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.head_dim)
 
+        # mask future tokens for target self-attention
         if mask is not None:
             attn_weights.masked_fill_(mask, float('inf'))
 
+        # apply softmax so the sum of the weights is 1
         attn_weights = self.softmax(attn_weights)
 
-        if self.attn_dropout is True:
+        # applying dropout to the weights (will cause the weights to not sum to 1)
+        if self.dropout is not None:
             attn_weights = self.dropout(attn_weights)
 
         attn_output = torch.matmul(attn_weights, value)
@@ -160,6 +170,21 @@ class MultiHeadAttention(nn.Module):
         return attn_output, attn_weights
 
     def forward(self, query, key, value, mask):
+        """
+        Calculates new token representation using multi-headed self-attention and src/tgt attention.
+
+        Args:
+            query: input embeddings of shape (N, L, E_d), before projection into subspaces, where N - batch
+            size,
+            L - token sequence length, E_d - model embedding dimension.
+            key: input embeddings of shape (N, L, E_d), before projection into subspaces.
+            value: input embeddings of shape (N, L, E_d), before projection into subspaces.
+            mask: mask to be applied when ignoring future positions in sequence.
+
+        Returns:
+            token_representation: new token embeddings of shape (N, L, E_d).
+        """
+
         batch_size = query.shape[0]
 
         # Project src/tgt query, key and value into model_dim/attn_heads subspaces.
@@ -201,5 +226,18 @@ class FeedForwardNet(nn.Module):
 
 
 def _get_copies(module, num_of_copies):
-    # return num_of_copies deep copies of module
+    #     # return num_of_copies deep copies of module
     return nn.ModuleList([copy.deepcopy(module) for _ in range(num_of_copies)])
+
+
+if __name__ == "__main__":
+    # testing Transformer model
+    batch_size = 3
+    src_seq_length = 4
+    tgt_seq_length = 5
+    model_dim = 512
+    src_embed_batch = torch.randn((batch_size, src_seq_length, model_dim))
+    tgt_embed_batch = torch.randn((batch_size, tgt_seq_length, model_dim))
+
+    transformer = Transformer()
+    output = transformer(src_embed_batch, tgt_embed_batch, src_mask=None, tgt_mask=None)

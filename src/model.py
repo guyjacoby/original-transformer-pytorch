@@ -49,17 +49,20 @@ class PositionalEncoding(nn.Module):
         self.div_freq = torch.exp(torch.arange(0, model_dim, 2) / model_dim * math.log(1e4))
 
         # initialize positional encoding (pe) tensor
-        self.pe = torch.zeros((max_sequence_size, model_dim))
-        self.pe[:, 0::2] = torch.sin(self.pos / self.div_freq)
-        self.pe[:, 1::2] = torch.cos(self.pos / self.div_freq)
+        self.pos_enc = torch.zeros((max_sequence_size, model_dim))
+        self.pos_enc[:, 0::2] = torch.sin(self.pos / self.div_freq)
+        self.pos_enc[:, 1::2] = torch.cos(self.pos / self.div_freq)
+
+        # register positional encodings so that they would appear in state_dict of model
+        self.register_buffer('positional_encodings', self.pos_enc)
 
     def forward(self, embeddings):
-        assert self.pe.shape == embeddings.shape[1:], (
-            f"Mismatch between positional encoding tensor shape {self.pe.shape} and "
+        assert self.pos_enc.shape == embeddings.shape[1:], (
+            f"Mismatch between positional encoding tensor shape {self.pos_enc.shape} and "
             f"embeddings shape (without batch dim) {embeddings.shape[1:].shape}"
         )
 
-        return self.dropout(embeddings + self.pe)
+        return self.dropout(embeddings + self.pos_enc)
 
 
 class OutputGenerator(nn.Module):
