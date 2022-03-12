@@ -133,3 +133,10 @@ dmypy.json
 
 # macOS
 .DS_Store
+
+# project folders
+/data
+/models
+/notebooks
+/references
+/reports
