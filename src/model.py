@@ -19,7 +19,22 @@ class Model(nn.Module):
         
         self.output_generator = OutputGenerator(model_dim, tgt_vocab_size)
 
-    def forward(self, src, src_mask, tgt, tgt_mask):
+    def forward(self, src_token_ids, tgt_token_ids, src_mask, tgt_mask):
+
+        # Embed source/target tokens with learned embeddings
+        src_embeddings = self.src_embedding(src_token_ids)
+        tgt_embeddings = self.tgt_embedding(tgt_token_ids)
+
+        # Add positional encoding to the source/target embeddings
+        src_pos_embeddings = self.src_positional_embedding(src_embeddings)
+        tgt_pos_embeddings = self.tgt_positional_embedding(tgt_embeddings)
+
+        # Pass source/target through transformer to produce output encoding
+        transformed_tgt = self.transformer(src_pos_embeddings, tgt_pos_embeddings, src_mask, tgt_mask)
+
+        # Generate output tokens from transformed target sequence
+        generated_output = self.output_generator(transformed_tgt)
+
         return
 
 

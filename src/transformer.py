@@ -21,11 +21,6 @@ class Transformer(nn.Module):
         tgt = self.decoder(src, tgt, src_mask, tgt_mask)
         return tgt
 
-    def _initialize_parameters(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.kaiming_uniform_(p)
-
 
 ################################
 ### Core transformer modules ###
