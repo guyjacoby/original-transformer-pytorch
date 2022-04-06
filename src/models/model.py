@@ -9,6 +9,8 @@ class Model(nn.Module):
                  ffn_dim=2048, dropout=0.1):
         super().__init__()
 
+        self.tgt_vocab_size = tgt_vocab_size
+
         self.src_embedding = Embedding(src_vocab_size, model_dim)
         self.tgt_embedding = Embedding(tgt_vocab_size, model_dim)
 
@@ -29,13 +31,14 @@ class Model(nn.Module):
         src_pos_embeddings = self.src_positional_embedding(src_embeddings)
         tgt_pos_embeddings = self.tgt_positional_embedding(tgt_embeddings)
 
-        # Pass source/target through transformer to produce output encoding
-        transformed_tgt = self.transformer(src_pos_embeddings, tgt_pos_embeddings, src_mask, tgt_mask)
+        # Pass source/target through transformer to produce target decoding
+        tgt_decoded = self.transformer(src_pos_embeddings, tgt_pos_embeddings, src_mask, tgt_mask)
 
-        # Generate output tokens from transformed target sequence
-        generated_output = self.output_generator(transformed_tgt)
+        # Generate (log) probabilities of target tokens over the vocabulary
+        tgt_log_probas = self.output_generator(tgt_decoded)
 
-        return
+        # return the log probabilities reshaped as expected by the loss function (samples, log_probs)
+        return tgt_log_probas.reshape(-1, self.tgt_vocab_size)
 
 
 class Embedding(nn.Module):
@@ -72,19 +75,41 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('positional_encodings', self.pos_enc)
 
     def forward(self, embeddings):
-        assert self.pos_enc.shape == embeddings.shape[1:], (
-            f"Mismatch between positional encoding tensor shape {self.pos_enc.shape} and "
-            f"embeddings shape (without batch dim) {embeddings.shape[1:].shape}"
+        assert embeddings.ndim == 3 and embeddings.shape[-1] == self.pos_enc.shape[1], (
+            f"Expected dimensions (batch_size, max_sequence_length, model_dim) and but got {embeddings.shape}"
         )
 
-        return self.dropout(embeddings + self.pos_enc)
+        positional_encodings = self.pos_enc[:embeddings.shape[1]]
+
+        return self.dropout(embeddings + positional_encodings)
 
 
 class OutputGenerator(nn.Module):
     def __init__(self, model_dim, tgt_vocab_size):
         super().__init__()
         self.linear = nn.Linear(model_dim, tgt_vocab_size)
-        self.softmax = nn.LogSoftmax(dim=-1)
+        self.log_softmax = nn.LogSoftmax(dim=-1)
 
-    def forward(self):
-        return
+    def forward(self, tgt):
+        return self.log_softmax(self.linear(tgt))
+
+
+if __name__ == "__main__":
+
+    # test input
+    batch_size = 12
+    src_seq_length = 10
+    tgt_seq_length = 9
+
+    src_token_ids = torch.randint(0, 2, (batch_size, src_seq_length))
+    tgt_token_ids = torch.randint(0, 2, (batch_size, tgt_seq_length))
+    src_mask = (torch.ones_like(src_token_ids).reshape(batch_size, 1, 1, src_seq_length) == 1)
+    tgt_pad_mask = torch.ones_like(tgt_token_ids).reshape(batch_size, 1, 1, tgt_seq_length)
+    tgt_pad_mask[:, :, :, -3:] = 0
+    tgt_pad_mask = (tgt_pad_mask == 1)
+    tgt_future_mask = (torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1)
+    tgt_mask = tgt_pad_mask & tgt_future_mask
+
+    model = Model(src_vocab_size=1000, tgt_vocab_size=1000)
+
+    output = model(src_token_ids, tgt_token_ids, src_mask, tgt_mask)

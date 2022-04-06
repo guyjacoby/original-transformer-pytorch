@@ -16,6 +16,11 @@ class Transformer(nn.Module):
 
         self._initialize_parameters()
 
+    def _initialize_parameters(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.kaiming_uniform_(p, nonlinearity='relu')
+
     def forward(self, src, tgt, src_mask, tgt_mask):
         src = self.encoder(src, src_mask)
         tgt = self.decoder(src, tgt, src_mask, tgt_mask)
@@ -42,7 +47,7 @@ class EncoderLayer(nn.Module):
     def __init__(self, model_dim, attn_heads, ffn_dim, dropout):
         super().__init__()
 
-        self.mha = MultiHeadAttention(model_dim, attn_heads, dropout)
+        self.mha = MultiHeadAttention(model_dim, attn_heads)
         self.mha_dropout = nn.Dropout(dropout)
         self.mha_norm = nn.LayerNorm(model_dim)
 
@@ -79,11 +84,11 @@ class DecoderLayer(nn.Module):
     def __init__(self, model_dim, attn_heads, ffn_dim, dropout):
         super().__init__()
 
-        self.masked_mha = MultiHeadAttention(model_dim, attn_heads, dropout)
+        self.masked_mha = MultiHeadAttention(model_dim, attn_heads)
         self.masked_mha_dropout = nn.Dropout(dropout)
         self.masked_mha_norm = nn.LayerNorm(model_dim)
 
-        self.mha = MultiHeadAttention(model_dim, attn_heads, dropout)
+        self.mha = MultiHeadAttention(model_dim, attn_heads)
         self.mha_dropout = nn.Dropout(dropout)
         self.mha_norm = nn.LayerNorm(model_dim)
 
@@ -116,7 +121,7 @@ class DecoderLayer(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, model_dim, attn_heads, get_attn_weights=False, dropout=None):
+    def __init__(self, model_dim, attn_heads, dropout=None, get_attn_weights=False):
         super().__init__()
 
         assert model_dim % attn_heads == 0, (
@@ -142,19 +147,19 @@ class MultiHeadAttention(nn.Module):
         if dropout is not None:
             self.dropout = nn.Dropout(dropout)
         else:
-            self.dropout = dropout
+            self.dropout = None
 
     def attention(self, query, key, value, mask):
 
         # scaled dot-product attention
-        attn_weights = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.head_dim)
+        attn_scores = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.head_dim)
 
         # mask future tokens for target self-attention
         if mask is not None:
-            attn_weights.masked_fill_(mask, float('inf'))
+            attn_scores.masked_fill_(mask == False, float('-inf'))
 
         # apply softmax so the sum of the weights is 1
-        attn_weights = self.softmax(attn_weights)
+        attn_weights = self.softmax(attn_scores)
 
         # applying dropout to the weights (will cause the weights to not sum to 1)
         if self.dropout is not None:
