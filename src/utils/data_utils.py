@@ -1,5 +1,5 @@
 import os
-
+import pathlib
 import datasets
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
@@ -11,11 +11,12 @@ from constants import UNK_TOKEN, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, CHECKPOINTS_PA
 
 def get_dataset(cache_path=DATA_CACHE_PATH, year=2016):
     """
-    Download and/or load the IWSLT Ted Talks English/Hebrew dataset from the HuggingFace repository.
-    Args:
-        cache_path: Path of directory to write/read the downloaded dataset
+    Download and/or load the IWSLT Ted Talks English/German dataset from the HuggingFace repository.
 
-    Returns: loaded dataset
+    Args:
+        cache_path: Path of directory to write/read the dataset
+
+    Returns: loaded dataset as a HuggingFace DatasetDict object, which contains the dataset splits (each is a PyArrow Dataset object)
 
     """
 
@@ -26,7 +27,7 @@ def get_dataset(cache_path=DATA_CACHE_PATH, year=2016):
     raw_data = datasets.load_dataset(
         path="ted_talks_iwslt",
         cache_dir=cache_path,
-        language_pair=("en", "he"),
+        language_pair=("en", "de"),
         year=year
         )
 

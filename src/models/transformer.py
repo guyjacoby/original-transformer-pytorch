@@ -154,7 +154,7 @@ class MultiHeadAttention(nn.Module):
         # scaled dot-product attention
         attn_scores = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.head_dim)
 
-        # mask future tokens for target self-attention
+        # mask padding and future target tokens
         if mask is not None:
             attn_scores.masked_fill_(mask == False, float('-inf'))
 
