@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 DEFAULT_MODEL_NUMBER_OF_LAYERS = 6
 DEFAULT_MODEL_NUMBER_OF_HEADS = 8
@@ -16,9 +16,14 @@ EOS_TOKEN = '[EOS]'
 PAD_TOKEN = '[PAD]'
 
 
-CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, 'models', 'checkpoints')
-MODEL_BINARIES_PATH = os.path.join(os.path.dirname(__file__), os.pardir,  os.pardir, 'models', 'binaries')
-DATA_CACHE_PATH = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, 'data', 'external')
-os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
-os.makedirs(MODEL_BINARIES_PATH, exist_ok=True)
-os.makedirs(DATA_CACHE_PATH, exist_ok=True)
+CHECKPOINTS_PATH = Path(Path(__file__).parents[2] / 'models/checkpoints')
+CHECKPOINTS_PATH.mkdir(parents=True, exist_ok=True)
+
+MODEL_BINARIES_PATH = Path(Path(__file__).parents[2] / 'models/binaries')
+MODEL_BINARIES_PATH.mkdir(parents=True, exist_ok=True)
+
+DATA_CACHE_PATH = Path(Path(__file__).parents[2] / 'data/external')
+DATA_CACHE_PATH.mkdir(parents=True, exist_ok=True)
+
+TOKENIZER_PATH = Path(Path(__file__).parents[2] / 'models/tokenizer')
+TOKENIZER_PATH.mkdir(parents=True, exist_ok=True)
