@@ -106,27 +106,34 @@ def collate_fn(batch):
     return src_ids, tgt_ids, src_mask, tgt_mask
 
 
-def get_data_loaders(cache_path=DATA_CACHE_PATH, batch_size=10):
-    training_data = pd.DataFrame()
+def sort_key(bucket):
+    return [bucket[i] for i in np.argsort([len(pair[0]) for pair in bucket])]
 
+
+def get_data_loaders(cache_path=DATA_CACHE_PATH, batch_size=10):
+    # create train data pipeline and dataloader from 2015/2016
+    training_data = pd.DataFrame()
     for year in ['2015', '2016']:
         df = get_dataset(cache_path=cache_path, year=year)['train'].flatten().to_pandas()
         training_data = pd.concat([training_data, df])
 
-    dp = IterableWrapper(zip(training_data['translation.en'].values.tolist(), training_data['translation.de'].values.tolist()))
+    train_dp = IterableWrapper(
+        zip(training_data['translation.en'].values.tolist(), training_data['translation.de'].values.tolist()))
+    train_batch_dp = train_dp.bucketbatch(batch_size=batch_size, drop_last=False, batch_num=100, bucket_num=100,
+                                          sort_key=sort_key)
+    train_loader = DataLoader(dataset=train_batch_dp, shuffle=True, collate_fn=collate_fn)
 
-    def sort_key(bucket):
-        return [bucket[i] for i in np.argsort([len(pair[0]) for pair in bucket])]
+    # create eval data pipeline and dataloader from 2014
+    eval_data = get_dataset(cache_path=cache_path, year='2014')['train'].flatten().to_pandas()
+    eval_dp = IterableWrapper(eval_data['translation.en'].values.tolist(), eval_data['translation.de'].values.tolist())
+    eval_batch_dp = eval_dp.bucketbatch(batch_size=batch_size, drop_last=False, batch_num=100, bucket_num=100,
+                                          sort_key=sort_key)
+    eval_loader = DataLoader(dataset=eval_batch_dp, shuffle=True, collate_fn=collate_fn)
 
-    batch_dp = dp.bucketbatch(batch_size=batch_size, drop_last=False, batch_num=100, bucket_num=100, sort_key=sort_key)
-
-    loader = DataLoader(dataset=batch_dp, shuffle=True, collate_fn=collate_fn)
-
-    return loader
+    return train_loader, eval_loader
 
 
 if __name__ == "__main__":
-
     # # train new tokenizer on iwslt 2015,2016
     tokenizer = initialize_tokenizer()
     train_bpe_tokenizer(tokenizer)

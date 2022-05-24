@@ -4,7 +4,7 @@ import torch.nn as nn
 from transformer import Transformer
 
 
-class Model(nn.Module):
+class Seq2SeqModel(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, model_dim=512, num_of_layers=6, num_of_attn_heads=8,
                  ffn_dim=2048, dropout=0.1):
         super().__init__()
@@ -110,6 +110,6 @@ if __name__ == "__main__":
     tgt_future_mask = (torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1)
     tgt_mask = tgt_pad_mask & tgt_future_mask
 
-    model = Model(src_vocab_size=1000, tgt_vocab_size=1000)
+    model = Seq2SeqModel(src_vocab_size=1000, tgt_vocab_size=1000)
 
     output = model(src_token_ids, tgt_token_ids, src_mask, tgt_mask)

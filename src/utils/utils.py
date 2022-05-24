@@ -1,0 +1,1 @@
+# read and implement custom optimizer like in paper, label smoothing and greedy decoding
