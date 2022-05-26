@@ -111,5 +111,6 @@ if __name__ == "__main__":
     tgt_mask = tgt_pad_mask & tgt_future_mask
 
     model = Seq2SeqModel(src_vocab_size=1000, tgt_vocab_size=1000)
-
+    from torch.optim import Adam
+    optimizer = Adam(model.parameters())
     output = model(src_token_ids, tgt_token_ids, src_mask, tgt_mask)
