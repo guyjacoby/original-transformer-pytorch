@@ -4,7 +4,7 @@ import torch.nn as nn
 from transformer import Transformer
 
 
-class Seq2SeqModel(nn.Module):
+class TranslationModel(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, model_dim=512, num_of_layers=6, num_of_attn_heads=8,
                  ffn_dim=2048, dropout=0.1):
         super().__init__()
@@ -34,11 +34,11 @@ class Seq2SeqModel(nn.Module):
         # Pass source/target through transformer to produce target decoding
         tgt_decoded = self.transformer(src_pos_embeddings, tgt_pos_embeddings, src_mask, tgt_mask)
 
-        # Generate (log) probabilities of target tokens over the vocabulary
-        tgt_log_probas = self.output_generator(tgt_decoded)
+        # Generate log probabilities of target tokens over the vocabulary
+        tgt_log_probs = self.output_generator(tgt_decoded)
 
-        # return the log probabilities reshaped as expected by the loss function (samples, log_probs)
-        return tgt_log_probas.reshape(-1, self.tgt_vocab_size)
+        # return the log probabilities reshaped as expected by the KL Div loss function (samples, log_probs)
+        return tgt_log_probs.reshape(-1, self.tgt_vocab_size)
 
 
 class Embedding(nn.Module):
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     tgt_future_mask = (torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1)
     tgt_mask = tgt_pad_mask & tgt_future_mask
 
-    model = Seq2SeqModel(src_vocab_size=1000, tgt_vocab_size=1000)
+    model = TranslationModel(src_vocab_size=1000, tgt_vocab_size=1000)
     from torch.optim import Adam
     optimizer = Adam(model.parameters())
     output = model(src_token_ids, tgt_token_ids, src_mask, tgt_mask)

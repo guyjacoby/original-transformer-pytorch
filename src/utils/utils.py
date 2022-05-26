@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 
+from src.utils.data_utils import load_tokenizer
+
 
 class CustomAdam:
     def __init__(self, optimizer, d_model=512, warmup_steps=4000):
@@ -37,8 +39,26 @@ class LabelSmoothing(nn.Module):
 
     def forward(self, tgt_ids):
         batch_size = tgt_ids.shape[0]
-        tgt_smoothed_probs = torch.zeros((batch_size, self.tgt_vocab_size), device=self.device)
+        tgt_smoothed_probs = torch.zeros((batch_size, self.tgt_vocab_size), requires_grad=False, device=self.device)
 
-        # -2 because of original target and PAD
+        # first we fill the probability distribution with 1/(N-2) (-2 because of the target id, and PAD)
         tgt_smoothed_probs.fill_(self.smoothing / (self.tgt_vocab_size - 2))
-        tgt_smoothed_probs
+
+        # we then place the soft label at the right id in the vocab
+        tgt_smoothed_probs.scatter_(1, tgt_ids, 1 - self.smoothing)
+
+        # we must 0 the probability of PAD tokens
+        tgt_smoothed_probs[:, self.pad_token_id] = 0
+
+        # finally, we put all zeros as the distribution when the target token is PAD
+        tgt_smoothed_probs.masked_fill_(tgt_ids == self.pad_token_id, 0)
+
+        return tgt_smoothed_probs
+
+
+def greedy_decoding(batch):
+
+    return
+
+def bleu_score():
+    pass

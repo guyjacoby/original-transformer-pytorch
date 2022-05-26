@@ -231,6 +231,7 @@ def _get_copies(module, num_of_copies):
 
 
 if __name__ == "__main__":
+
     # testing Transformer model
     batch_size = 3
     src_seq_length = 4

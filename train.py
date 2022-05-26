@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 
-from src.models.model import Seq2SeqModel
+from src.models.model import TranslationModel
 from src.utils.utils import CustomAdam, LabelSmoothing
 from src.utils.data_utils import get_data_loaders
 from src.utils.constants import *
