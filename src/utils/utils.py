@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from src.utils.constants import *
-from src.utils.data_utils import load_tokenizer, tokenize_batch
+from src.utils.data_utils import load_tokenizer, tokenize_batch, create_target_mask
 
 
 class CustomAdam:
@@ -16,8 +16,8 @@ class CustomAdam:
         self.optimizer.zero_grad()
 
     def calc_current_learning_rate(self):
-        learning_rate = self.d_model**(-0.5) * min(self.step_num**(-0.5),
-                                                   self.step_num * self.warmup_steps**(-1.5))
+        learning_rate = self.d_model ** (-0.5) * min(self.step_num ** (-0.5),
+                                                     self.step_num * self.warmup_steps ** (-1.5))
         return learning_rate
 
     def step(self):
@@ -57,20 +57,50 @@ class LabelSmoothing(nn.Module):
         return tgt_smoothed_probs
 
 
-def greedy_decoding(model, tokenizer, src_ids, src_mask):
-    batch_size = src_ids.shape[0]
-    pad_token_id =
+def greedy_decoding(model, tokenizer, src_encoder_output, src_mask):
+    batch_size = src_encoder_output.shape[0]
+    pad_token_id = tokenizer.token_to_id(PAD_TOKEN)
 
     target_token_sequences = [[BOS_TOKEN] for _ in range(batch_size)]
-    target_input = torch.tensor([[tokenizer.token_to_id(token) for token in seq] for seq in target_token_sequences])
+    is_decoded = [False] * batch_size
 
-    while target_input==
-    return
+    while not all(is_decoded):
+
+        tgt_ids_input, tgt_pad_mask = tokenize_batch(tokenizer, target_token_sequences, is_source=False,
+                                                     is_pretokenized=True, add_special_tokens=False)
+        tgt_mask = create_target_mask(tgt_pad_mask)
+        tgt_decoded = model.transformer.decoder(src_encoder_output, tgt_ids_input, src_mask, tgt_mask)
+        target_log_probs = model.output_generator(tgt_decoded).reshape(batch_size,
+                                                                       len(target_token_sequences[0]),
+                                                                       tokenizer.get_vocab_size())
+        # get the log probability distribution of the last tokens for each sentence
+        last_token_distributions = target_log_probs[:, -1, :]
+
+        # find the vocab index of the token that has the max probability (<- greedy)
+        last_token_indices = torch.argmax(last_token_distributions, -1).cpu().numpy()
+
+        for i in range(batch_size):
+            token = tokenizer.id_to_token(last_token_indices[i])
+            target_token_sequences[i].append(token)
+            if token == PAD_TOKEN:
+                is_decoded[i] = True
+
+        if len(target_token_sequences[0]) == MAX_TOKEN_LEN:
+            break
+
+    tgt_ids_input, _ = tokenize_batch(tokenizer, target_token_sequences, is_source=False,
+                                                 is_pretokenized=True, add_special_tokens=False)
+    translations = tokenizer.decode_batch(tgt_ids_input)
+
+    return translations
+
 
 def bleu_score():
     pass
 
 
 if __name__ == "__main__":
-    tokenizer = load_tokenizer(TOKENIZER_PATH)
-    greedy_decoding(6, tokenizer, ['Well, hello there!', 'How are you?'])
+
+    # tokenizer = load_tokenizer(TOKENIZER_PATH)
+    # src_encoder_output, src_mask = tokenize_batch(tokenizer, ['Well, hello there!', 'How are you?'], is_source=True)
+    # greedy_decoding(6, tokenizer, src_encoder_output, src_mask)

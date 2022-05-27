@@ -68,17 +68,24 @@ def load_tokenizer(tokenizer_path):
     return Tokenizer.from_file(str(Path(tokenizer_path / 'tokenizer.json')))
 
 
-def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False):
+def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False, add_special_tokens=True):
     if is_source:
         tokenizer.post_processor = TemplateProcessing(single="$0 [EOS]", special_tokens=[("[EOS]", 2)])
     else:
         tokenizer.post_processor = TemplateProcessing(single="[BOS] $0 [EOS]",
                                                       special_tokens=[("[BOS]", 1), ("[EOS]", 2)])
-    encodings = tokenizer.encode_batch(batch, is_pretokenized=is_pretokenized)
+    encodings = tokenizer.encode_batch(batch, is_pretokenized=is_pretokenized, add_special_tokens=add_special_tokens)
     ids = [enc.ids for enc in encodings]
     mask = [enc.attention_mask for enc in encodings]
 
     return torch.tensor(ids, dtype=torch.short), torch.tensor(mask, dtype=torch.bool)
+
+
+def create_target_mask(tgt_pad_mask):
+    batch_size, tgt_seq_length = tgt_pad_mask.shape
+    tgt_pad_mask = tgt_pad_mask.reshape(batch_size, 1, 1, tgt_seq_length) == 1
+    tgt_future_mask = torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1
+    return tgt_pad_mask & tgt_future_mask
 
 
 def collate_fn(batch):
@@ -101,13 +108,12 @@ def collate_fn(batch):
     tgt_pad_mask = tgt_pad_mask[:, :-1]
     tgt_ids_output = tgt_ids[:, 1:]
 
-    # reshape masks for attention calculations
+    # create pad and future mask for target
+    tgt_mask = create_target_mask(tgt_pad_mask)
+
+    # reshape src masks for attention calculations
     batch_size, src_seq_length = src_ids.shape
-    tgt_seq_length = tgt_ids_input.shape[1]
     src_mask = src_mask.reshape(batch_size, 1, 1, src_seq_length) == 1
-    tgt_pad_mask = tgt_pad_mask.reshape(batch_size, 1, 1, tgt_seq_length) == 1
-    tgt_future_mask = torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1
-    tgt_mask = tgt_pad_mask & tgt_future_mask
 
     return src_ids, tgt_ids_input, tgt_ids_output, src_mask, tgt_mask
 

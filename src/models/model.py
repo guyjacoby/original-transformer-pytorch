@@ -36,8 +36,7 @@ class TranslationModel(nn.Module):
         # Generate log probabilities of target tokens over the vocabulary
         tgt_log_probs = self.output_generator(tgt_decoded)
 
-        # return the log probabilities reshaped as expected by the KL Div loss function (samples, log_probs)
-        return tgt_log_probs.reshape(-1, self.tgt_vocab_size)
+        return tgt_log_probs
 
 
 class Embedding(nn.Module):
@@ -86,11 +85,15 @@ class PositionalEncoding(nn.Module):
 class OutputGenerator(nn.Module):
     def __init__(self, model_dim, tgt_vocab_size):
         super().__init__()
+        self.tgt_vocab_size = tgt_vocab_size
         self.linear = nn.Linear(model_dim, tgt_vocab_size)
         self.log_softmax = nn.LogSoftmax(dim=-1)
 
     def forward(self, tgt):
-        return self.log_softmax(self.linear(tgt))
+        tgt_log_probs = self.log_softmax(self.linear(tgt))
+
+        # return the log probabilities reshaped as expected by the KL Div loss function (samples, log_probs)
+        return tgt_log_probs.reshape(-1, self.tgt_vocab_size)
 
 
 if __name__ == "__main__":
