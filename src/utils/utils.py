@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 
-from src.utils.data_utils import load_tokenizer
+from src.utils.constants import *
+from src.utils.data_utils import load_tokenizer, tokenize_batch
 
 
 class CustomAdam:
@@ -56,9 +57,20 @@ class LabelSmoothing(nn.Module):
         return tgt_smoothed_probs
 
 
-def greedy_decoding(batch):
+def greedy_decoding(model, tokenizer, src_ids, src_mask):
+    batch_size = src_ids.shape[0]
+    pad_token_id =
 
+    target_token_sequences = [[BOS_TOKEN] for _ in range(batch_size)]
+    target_input = torch.tensor([[tokenizer.token_to_id(token) for token in seq] for seq in target_token_sequences])
+
+    while target_input==
     return
 
 def bleu_score():
     pass
+
+
+if __name__ == "__main__":
+    tokenizer = load_tokenizer(TOKENIZER_PATH)
+    greedy_decoding(6, tokenizer, ['Well, hello there!', 'How are you?'])

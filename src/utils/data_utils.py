@@ -68,13 +68,17 @@ def load_tokenizer(tokenizer_path):
     return Tokenizer.from_file(str(Path(tokenizer_path / 'tokenizer.json')))
 
 
-def tokenize_batch(tokenizer, batch, is_source):
+def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False):
     if is_source:
         tokenizer.post_processor = TemplateProcessing(single="$0 [EOS]", special_tokens=[("[EOS]", 2)])
     else:
         tokenizer.post_processor = TemplateProcessing(single="[BOS] $0 [EOS]",
                                                       special_tokens=[("[BOS]", 1), ("[EOS]", 2)])
-    return tokenizer.encode_batch(batch)
+    encodings = tokenizer.encode_batch(batch, is_pretokenized=is_pretokenized)
+    ids = [enc.ids for enc in encodings]
+    mask = [enc.attention_mask for enc in encodings]
+
+    return torch.tensor(ids, dtype=torch.short), torch.tensor(mask, dtype=torch.bool)
 
 
 def collate_fn(batch):
@@ -86,18 +90,11 @@ def collate_fn(batch):
     source = [pair[0] for pair in batch[0]]
     target = [pair[1] for pair in batch[0]]
 
-    # source encodings - not using BOS for source language (is there a benefit to using it?)
-    source_encodings = tokenize_batch(tokenizer, source, True)
-    src_ids = [src_enc.ids for src_enc in source_encodings]
-    src_mask = [src_enc.attention_mask for src_enc in source_encodings]
+    # encode source - not using BOS for source language (is there a benefit to using it?)
+    src_ids, src_mask = tokenize_batch(tokenizer, source, True)
 
-    # target encodings
-    target_encodings = tokenize_batch(tokenizer, target, False)
-    tgt_ids = [tgt_enc.ids for tgt_enc in target_encodings]
-    tgt_pad_mask = [tgt_enc.attention_mask for tgt_enc in target_encodings]
-
-    src_ids, src_mask, tgt_ids, tgt_pad_mask = torch.tensor(src_ids), torch.tensor(src_mask), torch.tensor(
-        tgt_ids), torch.tensor(tgt_pad_mask)
+    # encode target - using both BOS and EOS
+    tgt_ids, tgt_pad_mask = tokenize_batch(tokenizer, target, False)
 
     # target ids for input are shifted by one using BOS, compared to target ids as labels without BOS
     tgt_ids_input = tgt_ids[:, :-1]
@@ -107,7 +104,6 @@ def collate_fn(batch):
     # reshape masks for attention calculations
     batch_size, src_seq_length = src_ids.shape
     tgt_seq_length = tgt_ids_input.shape[1]
-
     src_mask = src_mask.reshape(batch_size, 1, 1, src_seq_length) == 1
     tgt_pad_mask = tgt_pad_mask.reshape(batch_size, 1, 1, tgt_seq_length) == 1
     tgt_future_mask = torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1
@@ -154,3 +150,6 @@ if __name__ == "__main__":
     # train new tokenizer on iwslt 2015,2016
     train_bpe_tokenizer()
     print(f'Trained and saved the BPE tokenizer.')
+
+    # train, eval = get_data_loaders()
+    # a = next(iter(train))

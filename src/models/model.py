@@ -8,7 +8,6 @@ class TranslationModel(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, model_dim=512, num_of_layers=6, num_of_attn_heads=8,
                  ffn_dim=2048, dropout=0.1):
         super().__init__()
-
         self.tgt_vocab_size = tgt_vocab_size
 
         self.src_embedding = Embedding(src_vocab_size, model_dim)
