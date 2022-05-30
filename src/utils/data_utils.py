@@ -152,7 +152,6 @@ def get_data_loaders(cache_path=DATA_CACHE_PATH, batch_size=10):
 
 
 if __name__ == "__main__":
-
     # train new tokenizer on iwslt 2015,2016
     train_bpe_tokenizer()
     print(f'Trained and saved the BPE tokenizer.')

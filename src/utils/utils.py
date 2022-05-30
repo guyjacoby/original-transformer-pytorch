@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from src.utils.constants import *
-from src.utils.data_utils import load_tokenizer, tokenize_batch, create_target_mask
+from src.utils.data_utils import tokenize_batch, create_target_mask
 
 
 class CustomAdam:
@@ -97,10 +97,3 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask):
 
 def bleu_score():
     pass
-
-
-if __name__ == "__main__":
-
-    # tokenizer = load_tokenizer(TOKENIZER_PATH)
-    # src_encoder_output, src_mask = tokenize_batch(tokenizer, ['Well, hello there!', 'How are you?'], is_source=True)
-    # greedy_decoding(6, tokenizer, src_encoder_output, src_mask)
