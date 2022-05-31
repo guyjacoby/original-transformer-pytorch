@@ -6,7 +6,7 @@ from src.models.transformer import Transformer
 
 class TranslationModel(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, model_dim=512, num_of_layers=6, num_of_attn_heads=8,
-                 ffn_dim=2048, dropout=0.1):
+                 ffn_dim=2048, dropout=0.1, weight_sharing=False):
         super().__init__()
         self.tgt_vocab_size = tgt_vocab_size
 
@@ -19,6 +19,17 @@ class TranslationModel(nn.Module):
         self.transformer = Transformer(model_dim, num_of_layers, num_of_attn_heads, ffn_dim, dropout)
         
         self.output_generator = OutputGenerator(model_dim, tgt_vocab_size)
+
+        self._initialize_parameters()
+
+        if weight_sharing:
+            self.src_embedding.embedding.weight = self.tgt_embedding.embedding.weight
+            self.output_generator.linear.weight = self.tgt_embedding.embedding.weight
+
+    def _initialize_parameters(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.kaiming_uniform_(p, nonlinearity='relu')
 
     def forward(self, src_token_ids, tgt_token_ids, src_mask, tgt_mask):
 
@@ -86,7 +97,7 @@ class OutputGenerator(nn.Module):
     def __init__(self, model_dim, tgt_vocab_size):
         super().__init__()
         self.tgt_vocab_size = tgt_vocab_size
-        self.linear = nn.Linear(model_dim, tgt_vocab_size)
+        self.linear = nn.Linear(model_dim, tgt_vocab_size, bias=False)
         self.log_softmax = nn.LogSoftmax(dim=-1)
 
     def forward(self, tgt):
@@ -94,25 +105,3 @@ class OutputGenerator(nn.Module):
 
         # return the log probabilities reshaped as expected by the KL Div loss function (samples, log_probs)
         return tgt_log_probs.reshape(-1, self.tgt_vocab_size)
-
-
-# if __name__ == "__main__":
-
-    # test input
-    # batch_size = 12
-    # src_seq_length = 10
-    # tgt_seq_length = 9
-    #
-    # src_token_ids = torch.randint(0, 2, (batch_size, src_seq_length))
-    # tgt_token_ids = torch.randint(0, 2, (batch_size, tgt_seq_length))
-    # src_mask = (torch.ones_like(src_token_ids).reshape(batch_size, 1, 1, src_seq_length) == 1)
-    # tgt_pad_mask = torch.ones_like(tgt_token_ids).reshape(batch_size, 1, 1, tgt_seq_length)
-    # tgt_pad_mask[:, :, :, -3:] = 0
-    # tgt_pad_mask = (tgt_pad_mask == 1)
-    # tgt_future_mask = (torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1)
-    # tgt_mask = tgt_pad_mask & tgt_future_mask
-    #
-    # model = TranslationModel(src_vocab_size=1000, tgt_vocab_size=1000)
-    # from torch.optim import Adam
-    # optimizer = Adam(model.parameters())
-    # output = model(src_token_ids, tgt_token_ids, src_mask, tgt_mask)
