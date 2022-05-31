@@ -11,7 +11,7 @@ from tokenizers.normalizers import NFD, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
 
-from constants import *
+from src.utils.constants import *
 
 
 def get_dataset(cache_path=DATA_CACHE_PATH, year='2016'):
@@ -74,6 +74,7 @@ def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False, add_speci
     else:
         tokenizer.post_processor = TemplateProcessing(single="[BOS] $0 [EOS]",
                                                       special_tokens=[("[BOS]", 1), ("[EOS]", 2)])
+
     encodings = tokenizer.encode_batch(batch, is_pretokenized=is_pretokenized, add_special_tokens=add_special_tokens)
     ids = [enc.ids for enc in encodings]
     mask = [enc.attention_mask for enc in encodings]
@@ -106,7 +107,7 @@ def collate_fn(batch):
     # target ids for input are shifted by one using BOS, compared to target ids as labels without BOS
     tgt_ids_input = tgt_ids[:, :-1]
     tgt_pad_mask = tgt_pad_mask[:, :-1]
-    tgt_ids_output = tgt_ids[:, 1:]
+    tgt_ids_label = tgt_ids[:, 1:]
 
     # create pad and future mask for target
     tgt_mask = create_target_mask(tgt_pad_mask)
@@ -115,7 +116,7 @@ def collate_fn(batch):
     batch_size, src_seq_length = src_ids.shape
     src_mask = src_mask.reshape(batch_size, 1, 1, src_seq_length) == 1
 
-    return src_ids, tgt_ids_input, tgt_ids_output, src_mask, tgt_mask
+    return src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask
 
 
 def sort_key(bucket):
