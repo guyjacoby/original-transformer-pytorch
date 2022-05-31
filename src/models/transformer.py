@@ -230,15 +230,15 @@ def _get_copies(module, num_of_copies):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(num_of_copies)])
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
     # testing Transformer model
-    batch_size = 3
-    src_seq_length = 4
-    tgt_seq_length = 5
-    model_dim = 512
-    src_embed_batch = torch.randn((batch_size, src_seq_length, model_dim))
-    tgt_embed_batch = torch.randn((batch_size, tgt_seq_length, model_dim))
-
-    transformer = Transformer()
-    output = transformer(src_embed_batch, tgt_embed_batch, src_mask=None, tgt_mask=None)
+    # batch_size = 3
+    # src_seq_length = 4
+    # tgt_seq_length = 5
+    # model_dim = 512
+    # src_embed_batch = torch.randn((batch_size, src_seq_length, model_dim))
+    # tgt_embed_batch = torch.randn((batch_size, tgt_seq_length, model_dim))
+    #
+    # transformer = Transformer()
+    # output = transformer(src_embed_batch, tgt_embed_batch, src_mask=None, tgt_mask=None)

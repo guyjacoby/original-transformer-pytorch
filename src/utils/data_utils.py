@@ -79,7 +79,7 @@ def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False, add_speci
     ids = [enc.ids for enc in encodings]
     mask = [enc.attention_mask for enc in encodings]
 
-    return torch.tensor(ids, dtype=torch.short), torch.tensor(mask, dtype=torch.bool)
+    return torch.tensor(ids, dtype=torch.int), torch.tensor(mask, dtype=torch.bool)
 
 
 def create_target_mask(tgt_pad_mask):
@@ -105,9 +105,10 @@ def collate_fn(batch):
     tgt_ids, tgt_pad_mask = tokenize_batch(tokenizer, target, False)
 
     # target ids for input are shifted by one using BOS, compared to target ids as labels without BOS
+    # target ids for label are reshaped to accommodate loss fn that expects (sample, vocab)
     tgt_ids_input = tgt_ids[:, :-1]
     tgt_pad_mask = tgt_pad_mask[:, :-1]
-    tgt_ids_label = tgt_ids[:, 1:]
+    tgt_ids_label = tgt_ids[:, 1:].reshape(-1, 1)
 
     # create pad and future mask for target
     tgt_mask = create_target_mask(tgt_pad_mask)

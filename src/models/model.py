@@ -96,23 +96,23 @@ class OutputGenerator(nn.Module):
         return tgt_log_probs.reshape(-1, self.tgt_vocab_size)
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
     # test input
-    batch_size = 12
-    src_seq_length = 10
-    tgt_seq_length = 9
-
-    src_token_ids = torch.randint(0, 2, (batch_size, src_seq_length))
-    tgt_token_ids = torch.randint(0, 2, (batch_size, tgt_seq_length))
-    src_mask = (torch.ones_like(src_token_ids).reshape(batch_size, 1, 1, src_seq_length) == 1)
-    tgt_pad_mask = torch.ones_like(tgt_token_ids).reshape(batch_size, 1, 1, tgt_seq_length)
-    tgt_pad_mask[:, :, :, -3:] = 0
-    tgt_pad_mask = (tgt_pad_mask == 1)
-    tgt_future_mask = (torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1)
-    tgt_mask = tgt_pad_mask & tgt_future_mask
-
-    model = TranslationModel(src_vocab_size=1000, tgt_vocab_size=1000)
-    from torch.optim import Adam
-    optimizer = Adam(model.parameters())
-    output = model(src_token_ids, tgt_token_ids, src_mask, tgt_mask)
+    # batch_size = 12
+    # src_seq_length = 10
+    # tgt_seq_length = 9
+    #
+    # src_token_ids = torch.randint(0, 2, (batch_size, src_seq_length))
+    # tgt_token_ids = torch.randint(0, 2, (batch_size, tgt_seq_length))
+    # src_mask = (torch.ones_like(src_token_ids).reshape(batch_size, 1, 1, src_seq_length) == 1)
+    # tgt_pad_mask = torch.ones_like(tgt_token_ids).reshape(batch_size, 1, 1, tgt_seq_length)
+    # tgt_pad_mask[:, :, :, -3:] = 0
+    # tgt_pad_mask = (tgt_pad_mask == 1)
+    # tgt_future_mask = (torch.ones((1, 1, tgt_seq_length, tgt_seq_length)).tril() == 1)
+    # tgt_mask = tgt_pad_mask & tgt_future_mask
+    #
+    # model = TranslationModel(src_vocab_size=1000, tgt_vocab_size=1000)
+    # from torch.optim import Adam
+    # optimizer = Adam(model.parameters())
+    # output = model(src_token_ids, tgt_token_ids, src_mask, tgt_mask)

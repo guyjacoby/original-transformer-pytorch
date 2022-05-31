@@ -46,7 +46,7 @@ class LabelSmoothing(nn.Module):
         tgt_smoothed_probs.fill_(self.smoothing / (self.tgt_vocab_size - 2))
 
         # we then place the soft label at the right id in the vocab
-        tgt_smoothed_probs.scatter_(1, tgt_ids, 1 - self.smoothing)
+        tgt_smoothed_probs.scatter_(1, tgt_ids.long(), 1 - self.smoothing)
 
         # we must 0 the probability of PAD tokens
         tgt_smoothed_probs[:, self.pad_token_id] = 0
