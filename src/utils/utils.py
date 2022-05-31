@@ -88,8 +88,11 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask):
         if len(target_token_sequences[0]) == MAX_TOKEN_LEN:
             break
 
-    tgt_ids_input, _ = tokenize_batch(tokenizer, target_token_sequences, is_source=False,
-                                                 is_pretokenized=True, add_special_tokens=False)
+    tgt_ids_input, _ = tokenize_batch(tokenizer,
+                                      target_token_sequences,
+                                      is_source=False,
+                                      is_pretokenized=True,
+                                      add_special_tokens=False)
     translations = tokenizer.decode_batch(tgt_ids_input)
 
     return translations

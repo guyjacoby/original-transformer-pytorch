@@ -21,7 +21,8 @@ def get_dataset(cache_path=DATA_CACHE_PATH, year='2016'):
     Args:
         cache_path: Path of directory to write/read the dataset
 
-    Returns: loaded dataset as a HuggingFace DatasetDict object, which contains the dataset splits (each is a PyArrow Dataset object)
+    Returns: loaded dataset as a HuggingFace DatasetDict object, which contains the dataset splits
+    (each is a PyArrow Dataset object)
 
     """
     dataset = datasets.load_dataset(path="ted_talks_iwslt", cache_dir=cache_path, language_pair=("en", "de"), year=year)
@@ -135,7 +136,10 @@ def get_data_loaders(cache_path=DATA_CACHE_PATH, batch_size=10):
 
         train_dp = IterableWrapper(
             zip(training_data['translation.en'].values.tolist(), training_data['translation.de'].values.tolist()))
-        train_batch_dp = train_dp.bucketbatch(batch_size=batch_size, drop_last=False, batch_num=100, bucket_num=100,
+        train_batch_dp = train_dp.bucketbatch(batch_size=batch_size,
+                                              drop_last=False,
+                                              batch_num=100,
+                                              bucket_num=100,
                                               sort_key=sort_key)
         train_loader = DataLoader(dataset=train_batch_dp, shuffle=True, collate_fn=collate_fn)
 
@@ -143,7 +147,10 @@ def get_data_loaders(cache_path=DATA_CACHE_PATH, batch_size=10):
         eval_data = get_dataset(cache_path=cache_path, year='2014')['train'].flatten().to_pandas()
         eval_dp = IterableWrapper(eval_data['translation.en'].values.tolist(),
                                   eval_data['translation.de'].values.tolist())
-        eval_batch_dp = eval_dp.bucketbatch(batch_size=batch_size, drop_last=False, batch_num=100, bucket_num=100,
+        eval_batch_dp = eval_dp.bucketbatch(batch_size=batch_size,
+                                            drop_last=False,
+                                            batch_num=100,
+                                            bucket_num=100,
                                             sort_key=sort_key)
         eval_loader = DataLoader(dataset=eval_batch_dp, shuffle=True, collate_fn=collate_fn)
 
@@ -157,6 +164,3 @@ if __name__ == "__main__":
     # train new tokenizer on iwslt 2015,2016
     train_bpe_tokenizer()
     print(f'Trained and saved the BPE tokenizer.')
-
-    # train, eval = get_data_loaders()
-    # a = next(iter(train))

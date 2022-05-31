@@ -39,7 +39,8 @@ def train_epoch(train_loader, model, label_smoothing, loss_fn, optimizer, epoch,
 
         # logging
         train_loss.append(loss.item())
-        if training_params['console_log_freq'] is not None and (batch_idx + 1) % training_params['console_log_freq'] == 0:
+        if training_params['console_log_freq'] is not None \
+                and (batch_idx + 1) % training_params['console_log_freq'] == 0:
             print(f'Model training: elapsed time = {(time.time() - start_time):.2f} secs | '
                   f'epoch = {epoch} | batch = {batch_idx + 1} | '
                   f'train loss = {loss.item()}')
@@ -65,7 +66,8 @@ def eval_model(eval_loader, model, label_smoothing, loss_fn, epoch, device, star
         loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
         val_loss.append(loss.item())
 
-        if training_params['console_log_freq'] is not None and (batch_idx + 1) % training_params['console_log_freq'] == 0:
+        if training_params['console_log_freq'] is not None\
+                and (batch_idx + 1) % training_params['console_log_freq'] == 0:
             print(f'Model eval: elapsed time = {(time.time() - start_time):.2f} secs | '
                   f'epoch = {epoch} | batch = {batch_idx + 1} | '
                   f'eval loss = {loss.item()}')
@@ -109,7 +111,7 @@ def train_translation_model(training_params):
     start_time = time.time()
 
     # training and evaluation loop
-    for epoch in range(1, training_params['num_epochs']+1):
+    for epoch in range(1, training_params['num_epochs'] + 1):
         train_epoch(train_loader, model, label_smoothing, kldiv_loss, optimizer, epoch, device, start_time)
 
         with torch.no_grad():
@@ -120,12 +122,11 @@ def train_translation_model(training_params):
 
 
 if __name__ == '__main__':
-
     training_params = {}
     training_params['num_epochs'] = 20
     training_params['batch_size'] = 10
     training_params['dataset_path'] = DATA_CACHE_PATH
-    training_params['warmup_steps'] = 10
+    training_params['warmup_steps'] = 4000
     training_params['console_log_freq'] = 10
     training_params['checkpoint_freq'] = 1
 
