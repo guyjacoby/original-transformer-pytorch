@@ -140,3 +140,6 @@ dmypy.json
 /notebooks
 /references
 /reports
+
+# weights and biases
+/wandb

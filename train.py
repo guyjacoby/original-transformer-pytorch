@@ -2,11 +2,16 @@ import argparse
 import time
 import torch
 from torch import nn
+from torch.optim import Adam
 
 from src.models.model import TranslationModel
 from src.utils.utils import CustomAdam, LabelSmoothing
 from src.utils.data_utils import get_data_loaders, load_tokenizer
 from src.utils.constants import *
+
+import wandb
+
+wandb.init(project="original-transformer-pytorch", entity="guyjacoby", name='second_try')
 
 train_loss = []
 val_loss = []
@@ -39,6 +44,7 @@ def train_epoch(train_loader, model, label_smoothing, loss_fn, optimizer, epoch,
 
         # logging
         train_loss.append(loss.item())
+        wandb.log({'train': {'loss': loss.item()}})
         if training_params['console_log_freq'] is not None \
                 and (batch_idx + 1) % training_params['console_log_freq'] == 0:
             print(f'Model training: elapsed time = {(time.time() - start_time):.2f} secs | '
@@ -65,7 +71,7 @@ def eval_model(eval_loader, model, label_smoothing, loss_fn, epoch, device, star
         smoothed_tgt_ids_label = label_smoothing(tgt_ids_label)
         loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
         val_loss.append(loss.item())
-
+        wandb.log({'val': {'loss': loss.item()}})
         if training_params['console_log_freq'] is not None\
                 and (batch_idx + 1) % training_params['console_log_freq'] == 0:
             print(f'Model eval: elapsed time = {(time.time() - start_time):.2f} secs | '
@@ -104,7 +110,7 @@ def train_translation_model(training_params):
     # KL divergence loss using batchmean (should be used according to pytorch docs)
     kldiv_loss = nn.KLDivLoss(reduction='batchmean')
 
-    optimizer = CustomAdam(optimizer=torch.optim.Adam(model.parameters()),
+    optimizer = CustomAdam(optimizer=Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09),
                            d_model=DEFAULT_MODEL_DIMENSION,
                            warmup_steps=training_params['warmup_steps'])
 
@@ -124,10 +130,15 @@ def train_translation_model(training_params):
 if __name__ == '__main__':
     training_params = {}
     training_params['num_epochs'] = 20
-    training_params['batch_size'] = 10
+    training_params['batch_size'] = 20
     training_params['dataset_path'] = DATA_CACHE_PATH
     training_params['warmup_steps'] = 4000
     training_params['console_log_freq'] = 10
     training_params['checkpoint_freq'] = 1
 
+    wandb.config = {
+        'epochs': training_params['num_epochs'],
+        'batch_size': training_params['batch_size'],
+        'warmup_steps': training_params['warmup_steps']
+    }
     train_translation_model(training_params)
