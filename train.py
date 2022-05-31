@@ -89,7 +89,8 @@ def train_translation_model(training_params):
                              num_of_layers=DEFAULT_MODEL_NUMBER_OF_LAYERS,
                              num_of_attn_heads=DEFAULT_MODEL_NUMBER_OF_HEADS,
                              ffn_dim=DEFAULT_MODEL_FFN_DIMENSION,
-                             dropout=DEFAULT_MODEL_DROPOUT
+                             dropout=DEFAULT_MODEL_DROPOUT,
+                             weight_sharing=True
                              ).to(device)
 
     # Label smoothing layer for target labels
@@ -124,7 +125,7 @@ if __name__ == '__main__':
     training_params['num_epochs'] = 20
     training_params['batch_size'] = 10
     training_params['dataset_path'] = DATA_CACHE_PATH
-    training_params['warmup_steps'] = 4000
+    training_params['warmup_steps'] = 10
     training_params['console_log_freq'] = 10
     training_params['checkpoint_freq'] = 1
 

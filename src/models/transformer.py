@@ -14,22 +14,15 @@ class Transformer(nn.Module):
         self.encoder = Encoder(encoder_layer, num_of_layers)
         self.decoder = Decoder(decoder_layer, num_of_layers)
 
-        self._initialize_parameters()
-
-    def _initialize_parameters(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.kaiming_uniform_(p, nonlinearity='relu')
-
     def forward(self, src, tgt, src_mask, tgt_mask):
         src = self.encoder(src, src_mask)
         tgt = self.decoder(src, tgt, src_mask, tgt_mask)
         return tgt
 
 
-################################
-### Core transformer modules ###
-################################
+############################
+# Core transformer modules #
+############################
 
 
 class Encoder(nn.Module):
@@ -115,9 +108,9 @@ class DecoderLayer(nn.Module):
         return tgt
 
 
-#####################################
-### Encoder/Decoder layer modules ###
-#####################################
+#################################
+# Encoder/Decoder layer modules #
+#################################
 
 
 class MultiHeadAttention(nn.Module):
@@ -228,17 +221,3 @@ class FeedForwardNet(nn.Module):
 def _get_copies(module, num_of_copies):
     #     # return num_of_copies deep copies of module
     return nn.ModuleList([copy.deepcopy(module) for _ in range(num_of_copies)])
-
-
-# if __name__ == "__main__":
-
-    # testing Transformer model
-    # batch_size = 3
-    # src_seq_length = 4
-    # tgt_seq_length = 5
-    # model_dim = 512
-    # src_embed_batch = torch.randn((batch_size, src_seq_length, model_dim))
-    # tgt_embed_batch = torch.randn((batch_size, tgt_seq_length, model_dim))
-    #
-    # transformer = Transformer()
-    # output = transformer(src_embed_batch, tgt_embed_batch, src_mask=None, tgt_mask=None)
