@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchdata.datapipes.iter import IterableWrapper
 import datasets
-from tokenizers import Tokenizer, normalizers
+from tokenizers import Tokenizer, normalizers, decoders
 from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
 from tokenizers.normalizers import NFD, Lowercase, StripAccents
@@ -13,24 +13,24 @@ from tokenizers.processors import TemplateProcessing
 
 from src.utils.constants import *
 
+TOKENIZER_VOCAB_SIZE = 37_000
 
-def get_dataset(cache_path=DATA_CACHE_PATH, year='2016'):
+
+def get_dataset(split, cache_path=DATA_CACHE_PATH):
     """
-    Download and/or load the IWSLT Ted Talks English/German dataset from the HuggingFace repository.
+    Download and/or load the WMT16 English/German dataset from the HuggingFace repository.
 
     Args:
         cache_path: Path of directory to write/read the dataset
 
-    Returns: loaded dataset as a HuggingFace DatasetDict object, which contains the dataset splits
-    (each is a PyArrow Dataset object)
+    Returns: Tuple of flattened dataset splits (each is a PyArrow Dataset object)
 
     """
-    dataset = datasets.load_dataset(path="ted_talks_iwslt", cache_dir=cache_path, language_pair=("en", "de"), year=year)
-    return dataset
+    return datasets.load_dataset(path="wmt16", name='de-en', cache_dir=cache_path, split=split)
 
 
 def initialize_tokenizer():
-    tokenizer = Tokenizer(BPE(unk_token=UNK_TOKEN))
+    tokenizer = Tokenizer(BPE(unk_token=UNK_TOKEN, end_of_word_suffix=SUFFIX))
 
     # padding and truncation
     tokenizer.enable_padding(pad_id=3, pad_token=PAD_TOKEN)
@@ -42,25 +42,28 @@ def initialize_tokenizer():
     # pre-tokenization
     tokenizer.pre_tokenizer = Whitespace()
 
+    # decoder
+    tokenizer.decoder = decoders.BPEDecoder(suffix=SUFFIX)
+
     return tokenizer
 
 
 def train_bpe_tokenizer(tokenizer_path=TOKENIZER_PATH, cache_path=DATA_CACHE_PATH):
     tokenizer = initialize_tokenizer()
-    trainer = BpeTrainer(special_tokens=[UNK_TOKEN, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN])
+    trainer = BpeTrainer(vocab_size=TOKENIZER_VOCAB_SIZE,
+                         show_progress=True,
+                         special_tokens=[UNK_TOKEN, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN],
+                         end_of_word_suffix=SUFFIX)
 
-    sentences = []
-    for year in ['2015', '2016']:
-        dataset = get_dataset(cache_path=cache_path, year=year)
-        for pair in dataset['train']['translation']:
-            sentences.append(pair['en'])
-            sentences.append(pair['de'])
+    train_set = get_dataset(split=('train'), cache_path=cache_path)
+    train_set = train_set.flatten()
 
-    def batch_iterator(batch_size=1000):
-        for i in range(0, len(sentences), batch_size):
-            yield sentences[i: i + batch_size]
+    # noinspection PyTypeChecker
+    def batch_iterator(batch_size=5000):
+        for i in range(0, len(train_set), batch_size):
+            yield train_set[i: i + batch_size]['translation.en'] + train_set[i: i + batch_size]['translation.de']
 
-    tokenizer.train_from_iterator(batch_iterator(), trainer=trainer, length=len(sentences))
+    tokenizer.train_from_iterator(batch_iterator(), trainer=trainer, length=len(train_set))
 
     tokenizer.save(str(Path(tokenizer_path / 'tokenizer.json')))
 
@@ -71,10 +74,10 @@ def load_tokenizer(tokenizer_path):
 
 def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False, add_special_tokens=True):
     if is_source:
-        tokenizer.post_processor = TemplateProcessing(single="$0 [EOS]", special_tokens=[("[EOS]", 2)])
+        tokenizer.post_processor = TemplateProcessing(single="$0 " + EOS_TOKEN, special_tokens=(EOS_TOKEN, 2))
     else:
-        tokenizer.post_processor = TemplateProcessing(single="[BOS] $0 [EOS]",
-                                                      special_tokens=[("[BOS]", 1), ("[EOS]", 2)])
+        tokenizer.post_processor = TemplateProcessing(single=BOS_TOKEN + " $0 " + EOS_TOKEN,
+                                                      special_tokens=[(BOS_TOKEN, 1), (EOS_TOKEN, 2)])
 
     encodings = tokenizer.encode_batch(batch, is_pretokenized=is_pretokenized, add_special_tokens=add_special_tokens)
     ids = [enc.ids for enc in encodings]
@@ -100,10 +103,10 @@ def collate_fn(batch):
     target = [pair[1] for pair in batch[0]]
 
     # encode source - not using BOS for source language (is there a benefit to using it?)
-    src_ids, src_mask = tokenize_batch(tokenizer, source, True)
+    src_ids, src_mask = tokenize_batch(tokenizer, source, is_source=True)
 
     # encode target - using both BOS and EOS
-    tgt_ids, tgt_pad_mask = tokenize_batch(tokenizer, target, False)
+    tgt_ids, tgt_pad_mask = tokenize_batch(tokenizer, target, is_source=False)
 
     # target ids for input are shifted by one using BOS, compared to target ids as labels without BOS
     # target ids for label are reshaped to accommodate loss fn that expects (sample, vocab)
@@ -125,17 +128,13 @@ def sort_key(bucket):
     return [bucket[i] for i in np.argsort([len(pair[0]) for pair in bucket])]
 
 
-def get_data_loaders(cache_path=DATA_CACHE_PATH, batch_size=10):
+def get_data_loaders(batch_size, cache_path=DATA_CACHE_PATH):
     if Path(TOKENIZER_PATH / 'tokenizer.json').is_file():
 
-        # create train data pipeline and dataloader from 2015/2016
-        training_data = pd.DataFrame()
-        for year in ['2015', '2016']:
-            df = get_dataset(cache_path=cache_path, year=year)['train'].flatten().to_pandas()
-            training_data = pd.concat([training_data, df])
-
-        train_dp = IterableWrapper(
-            zip(training_data['translation.en'].values.tolist(), training_data['translation.de'].values.tolist()))
+        train_set, eval_set = get_dataset(split=('train', 'test'), cache_path=DATA_CACHE_PATH)
+        train_set, eval_set = train_set.flatten(), eval_set.flatten()
+        # create train data pipeline and dataloader
+        train_dp = IterableWrapper(zip(train_set['translation.en'], train_set['translation.de']))
         train_batch_dp = train_dp.bucketbatch(batch_size=batch_size,
                                               drop_last=False,
                                               batch_num=100,
@@ -143,10 +142,8 @@ def get_data_loaders(cache_path=DATA_CACHE_PATH, batch_size=10):
                                               sort_key=sort_key)
         train_loader = DataLoader(dataset=train_batch_dp, shuffle=True, collate_fn=collate_fn)
 
-        # create eval data pipeline and dataloader from 2014
-        eval_data = get_dataset(cache_path=cache_path, year='2014')['train'].flatten().to_pandas()
-        eval_dp = IterableWrapper(eval_data['translation.en'].values.tolist(),
-                                  eval_data['translation.de'].values.tolist())
+        # create eval data pipeline and dataloader
+        eval_dp = IterableWrapper(zip(eval_set['translation.en'], eval_set['translation.de']))
         eval_batch_dp = eval_dp.bucketbatch(batch_size=batch_size,
                                             drop_last=False,
                                             batch_num=100,

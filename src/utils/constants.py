@@ -13,6 +13,7 @@ UNK_TOKEN = '[UNK]'
 BOS_TOKEN = '[BOS]'
 EOS_TOKEN = '[EOS]'
 PAD_TOKEN = '[PAD]'
+SUFFIX = '[/W]'
 
 
 MODEL_CHECKPOINTS_PATH = Path(Path(__file__).parents[2] / 'models/checkpoints')

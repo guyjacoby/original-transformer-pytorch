@@ -77,7 +77,8 @@ class PositionalEncoding(nn.Module):
         self.div_freq = torch.exp(torch.arange(0, model_dim, 2) / model_dim * math.log(1e4))
 
         # initialize positional encoding (pe) tensor
-        self.pos_enc = torch.zeros((max_sequence_size, model_dim))
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.pos_enc = torch.zeros((max_sequence_size, model_dim), device=device)
         self.pos_enc[:, 0::2] = torch.sin(self.pos / self.div_freq)
         self.pos_enc[:, 1::2] = torch.cos(self.pos / self.div_freq)
 

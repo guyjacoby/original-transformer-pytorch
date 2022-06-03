@@ -1,4 +1,4 @@
-import argparse
+import numpy as np
 import time
 import torch
 from torch import nn
@@ -11,10 +11,9 @@ from src.utils.constants import *
 
 import wandb
 
-wandb.init(project="original-transformer-pytorch", entity="guyjacoby", name='second_try')
+# wandb.init(project="original-transformer-pytorch", entity="guyjacoby")
 
 train_loss = []
-val_loss = []
 
 
 def train_epoch(train_loader, model, label_smoothing, loss_fn, optimizer, epoch, device, start_time):
@@ -44,7 +43,7 @@ def train_epoch(train_loader, model, label_smoothing, loss_fn, optimizer, epoch,
 
         # logging
         train_loss.append(loss.item())
-        wandb.log({'train': {'loss': loss.item()}})
+        # wandb.log({'train': {'loss': loss.item()}})
         if training_params['console_log_freq'] is not None \
                 and (batch_idx + 1) % training_params['console_log_freq'] == 0:
             print(f'Model training: elapsed time = {(time.time() - start_time):.2f} secs | '
@@ -57,9 +56,10 @@ def train_epoch(train_loader, model, label_smoothing, loss_fn, optimizer, epoch,
                    Path(MODEL_CHECKPOINTS_PATH / f'translation_model_checkpoint_epoch_{epoch}.pt'))
 
 
-def eval_model(eval_loader, model, label_smoothing, loss_fn, epoch, device, start_time):
+def eval_model(eval_loader, model, label_smoothing, loss_fn, device):
     model.eval()
-
+    val_loss = []
+    val_count = 0
     for batch_idx, eval_batch in enumerate(eval_loader):
         src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = (eval_batch[0].to(device),
                                                                      eval_batch[1].to(device),
@@ -71,12 +71,9 @@ def eval_model(eval_loader, model, label_smoothing, loss_fn, epoch, device, star
         smoothed_tgt_ids_label = label_smoothing(tgt_ids_label)
         loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
         val_loss.append(loss.item())
-        wandb.log({'val': {'loss': loss.item()}})
-        if training_params['console_log_freq'] is not None\
-                and (batch_idx + 1) % training_params['console_log_freq'] == 0:
-            print(f'Model eval: elapsed time = {(time.time() - start_time):.2f} secs | '
-                  f'epoch = {epoch} | batch = {batch_idx + 1} | '
-                  f'eval loss = {loss.item()}')
+        val_count += src_ids.shape[0]
+
+    # wandb.log({'val': {'loss': np.sum(val_loss) / val_count}}, commit=False)
 
 
 def train_translation_model(training_params):
@@ -121,7 +118,7 @@ def train_translation_model(training_params):
         train_epoch(train_loader, model, label_smoothing, kldiv_loss, optimizer, epoch, device, start_time)
 
         with torch.no_grad():
-            eval_model(eval_loader, model, label_smoothing, kldiv_loss, epoch, device, start_time)
+            eval_model(eval_loader, model, label_smoothing, kldiv_loss, device)
             # calculate BLEU score
 
     torch.save(model.state_dict(), Path(MODEL_BINARIES_PATH / 'translation_model.pt'))
@@ -130,15 +127,16 @@ def train_translation_model(training_params):
 if __name__ == '__main__':
     training_params = {}
     training_params['num_epochs'] = 20
-    training_params['batch_size'] = 20
+    training_params['batch_size'] = 50
     training_params['dataset_path'] = DATA_CACHE_PATH
     training_params['warmup_steps'] = 4000
     training_params['console_log_freq'] = 10
     training_params['checkpoint_freq'] = 1
 
-    wandb.config = {
-        'epochs': training_params['num_epochs'],
-        'batch_size': training_params['batch_size'],
-        'warmup_steps': training_params['warmup_steps']
-    }
+    # wandb.config = {
+    #     'epochs': training_params['num_epochs'],
+    #     'batch_size': training_params['batch_size'],
+    #     'warmup_steps': training_params['warmup_steps']
+    # }
+
     train_translation_model(training_params)
