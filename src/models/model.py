@@ -1,7 +1,7 @@
 import math
 import torch
 import torch.nn as nn
-from src.models.transformer import Transformer
+from transformer import Transformer
 
 
 class TranslationModel(nn.Module):
@@ -33,7 +33,6 @@ class TranslationModel(nn.Module):
                 nn.init.kaiming_uniform_(p, nonlinearity='relu')
 
     def forward(self, src_token_ids, tgt_token_ids, src_mask, tgt_mask):
-
         # Embed source/target tokens with learned embeddings
         src_embeddings = self.src_embedding(src_token_ids)
         tgt_embeddings = self.tgt_embedding(tgt_token_ids)

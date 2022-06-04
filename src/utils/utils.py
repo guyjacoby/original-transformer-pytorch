@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from src.utils.constants import *
-from src.utils.data_utils import tokenize_batch, create_target_mask
+from constants import *
+from data_utils import tokenize_batch, create_target_mask
 
 
 class CustomAdam:
@@ -57,11 +57,12 @@ class LabelSmoothing(nn.Module):
         return tgt_smoothed_probs
 
 
-def greedy_decoding(model, tokenizer, src_encoder_output, src_mask):
+def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
     batch_size = src_encoder_output.shape[0]
-    pad_token_id = tokenizer.token_to_id(PAD_TOKEN)
 
+    # initialize translation sequences with BOS token
     target_token_sequences = [[BOS_TOKEN] for _ in range(batch_size)]
+
     is_decoded = [False] * batch_size
 
     while not all(is_decoded):
@@ -69,15 +70,18 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask):
         tgt_ids_input, tgt_pad_mask = tokenize_batch(tokenizer, target_token_sequences, is_source=False,
                                                      is_pretokenized=True, add_special_tokens=False)
         tgt_mask = create_target_mask(tgt_pad_mask)
+        tgt_ids_input, tgt_mask = tgt_ids_input.to(device), tgt_mask.to(device)
         tgt_decoded = model.transformer.decoder(src_encoder_output, tgt_ids_input, src_mask, tgt_mask)
-        target_log_probs = model.output_generator(tgt_decoded).reshape(batch_size,
-                                                                       len(target_token_sequences[0]),
-                                                                       tokenizer.get_vocab_size())
+        target_log_probs = model.output_generator(tgt_decoded)
+
         # get the log probability distribution of the last tokens for each sentence
+        target_log_probs = target_log_probs.reshape(batch_size,
+                                                    len(target_token_sequences[0]),
+                                                    tokenizer.get_vocab_size())
         last_token_distributions = target_log_probs[:, -1, :]
 
         # find the vocab index of the token that has the max probability (<- greedy)
-        last_token_indices = torch.argmax(last_token_distributions, -1).cpu().numpy()
+        last_token_indices = torch.argmax(last_token_distributions, -1).detach().cpu().numpy()
 
         for i in range(batch_size):
             token = tokenizer.id_to_token(last_token_indices[i])

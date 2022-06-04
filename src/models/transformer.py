@@ -143,7 +143,6 @@ class MultiHeadAttention(nn.Module):
             self.dropout = None
 
     def attention(self, query, key, value, mask):
-
         # scaled dot-product attention
         attn_scores = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.head_dim)
 

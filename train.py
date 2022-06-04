@@ -1,17 +1,16 @@
-import numpy as np
 import time
+import numpy as np
 import torch
 from torch import nn
 from torch.optim import Adam
-
-from src.models.model import TranslationModel
-from src.utils.utils import CustomAdam, LabelSmoothing
-from src.utils.data_utils import get_data_loaders, load_tokenizer
-from src.utils.constants import *
-
 import wandb
 
-# wandb.init(project="original-transformer-pytorch", entity="guyjacoby")
+from src.models.model import TranslationModel
+from src.utils.constants import *
+from src.utils.data_utils import get_data_loaders, load_tokenizer
+from src.utils.utils import CustomAdam, LabelSmoothing
+
+wandb.init(project="original-transformer-pytorch", entity="guyjacoby")
 
 train_loss = []
 
@@ -20,11 +19,7 @@ def train_epoch(train_loader, model, label_smoothing, loss_fn, optimizer, epoch,
     model.train()
 
     for batch_idx, train_batch in enumerate(train_loader):
-        src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = (train_batch[0].to(device),
-                                                                     train_batch[1].to(device),
-                                                                     train_batch[2].to(device),
-                                                                     train_batch[3].to(device),
-                                                                     train_batch[4].to(device))
+        src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = map(lambda x: x.to(device), train_batch)
 
         # clear optimizer gradients
         optimizer.zero_grad()
@@ -43,7 +38,7 @@ def train_epoch(train_loader, model, label_smoothing, loss_fn, optimizer, epoch,
 
         # logging
         train_loss.append(loss.item())
-        # wandb.log({'train': {'loss': loss.item()}})
+        wandb.log({'train': {'loss': loss.item()}})
         if training_params['console_log_freq'] is not None \
                 and (batch_idx + 1) % training_params['console_log_freq'] == 0:
             print(f'Model training: elapsed time = {(time.time() - start_time):.2f} secs | '
@@ -61,19 +56,14 @@ def eval_model(eval_loader, model, label_smoothing, loss_fn, device):
     val_loss = []
     val_count = 0
     for batch_idx, eval_batch in enumerate(eval_loader):
-        src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = (eval_batch[0].to(device),
-                                                                     eval_batch[1].to(device),
-                                                                     eval_batch[2].to(device),
-                                                                     eval_batch[3].to(device),
-                                                                     eval_batch[4].to(device))
-
+        src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = map(lambda x: x.to(device), eval_batch)
         tgt_ids_output = model(src_ids, tgt_ids_input, src_mask, tgt_mask)
         smoothed_tgt_ids_label = label_smoothing(tgt_ids_label)
         loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
         val_loss.append(loss.item())
         val_count += src_ids.shape[0]
 
-    # wandb.log({'val': {'loss': np.sum(val_loss) / val_count}}, commit=False)
+    wandb.log({'val': {'loss': np.sum(val_loss) / val_count}}, commit=False)
 
 
 def train_translation_model(training_params):

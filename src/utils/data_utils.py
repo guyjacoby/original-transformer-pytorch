@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from torchdata.datapipes.iter import IterableWrapper
@@ -11,7 +10,7 @@ from tokenizers.normalizers import NFD, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
 
-from src.utils.constants import *
+from constants import *
 
 TOKENIZER_VOCAB_SIZE = 37_000
 
@@ -72,7 +71,7 @@ def load_tokenizer(tokenizer_path):
     return Tokenizer.from_file(str(Path(tokenizer_path / 'tokenizer.json')))
 
 
-def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False, add_special_tokens=True):
+def tokenize_batch(tokenizer , batch, is_source, is_pretokenized=False, add_special_tokens=True):
     if is_source:
         tokenizer.post_processor = TemplateProcessing(single="$0 " + EOS_TOKEN, special_tokens=(EOS_TOKEN, 2))
     else:
