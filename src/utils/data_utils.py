@@ -73,7 +73,7 @@ def load_tokenizer(tokenizer_path):
 
 def tokenize_batch(tokenizer , batch, is_source, is_pretokenized=False, add_special_tokens=True):
     if is_source:
-        tokenizer.post_processor = TemplateProcessing(single="$0 " + EOS_TOKEN, special_tokens=(EOS_TOKEN, 2))
+        tokenizer.post_processor = TemplateProcessing(single="$0 " + EOS_TOKEN, special_tokens=[(EOS_TOKEN, 2)])
     else:
         tokenizer.post_processor = TemplateProcessing(single=BOS_TOKEN + " $0 " + EOS_TOKEN,
                                                       special_tokens=[(BOS_TOKEN, 1), (EOS_TOKEN, 2)])
