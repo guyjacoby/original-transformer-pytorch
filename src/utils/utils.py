@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from constants import *
-from data_utils import tokenize_batch, create_target_mask
+from .constants import *
+from .data_utils import tokenize_batch, create_target_mask
 
 
 class CustomAdam:
