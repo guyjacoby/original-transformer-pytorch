@@ -38,12 +38,13 @@ def train_epoch(train_loader, model, label_smoothing, loss_fn, optimizer, epoch,
 
         # logging
         train_loss.append(loss.item())
-        wandb.log({'train': {'loss': loss.item()}})
+        wandb.log({'train': {'loss': loss.item(), 'tokens': torch.sum(src_mask).item()}})
         if training_params['console_log_freq'] is not None \
                 and (batch_idx + 1) % training_params['console_log_freq'] == 0:
             print(f'Model training: elapsed time = {(time.time() - start_time):.2f} secs | '
-                  f'epoch = {epoch} | batch = {batch_idx + 1} | '
-                  f'train loss = {loss.item()}')
+                  f'epoch = {epoch} | batch = {batch_idx + 1} | tokens = {torch.sum(src_mask).item()} | '
+                  f'lr = {optimizer.current_learning_rate:.5f} | '
+                  f'train loss = {loss.item():.5f}')
 
     # save model checkpoint
     if training_params['checkpoint_freq'] is not None and epoch % training_params['checkpoint_freq'] == 0:
@@ -116,17 +117,17 @@ def train_translation_model(training_params):
 
 if __name__ == '__main__':
     training_params = {}
-    training_params['num_epochs'] = 20
-    training_params['batch_size'] = 50
+    training_params['num_epochs'] = 1000
+    training_params['batch_size'] = 10
     training_params['dataset_path'] = DATA_CACHE_PATH
     training_params['warmup_steps'] = 4000
-    training_params['console_log_freq'] = 10
+    training_params['console_log_freq'] = 1
     training_params['checkpoint_freq'] = 1
 
-    # wandb.config = {
-    #     'epochs': training_params['num_epochs'],
-    #     'batch_size': training_params['batch_size'],
-    #     'warmup_steps': training_params['warmup_steps']
-    # }
+    wandb.config = {
+        'epochs': training_params['num_epochs'],
+        'batch_size': training_params['batch_size'],
+        'warmup_steps': training_params['warmup_steps']
+    }
 
     train_translation_model(training_params)

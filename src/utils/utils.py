@@ -10,24 +10,22 @@ class CustomAdam:
         self.optimizer = optimizer
         self.d_model = d_model
         self.warmup_steps = warmup_steps
-        self.step_num = 1
+        self._step_num = 0
 
     def zero_grad(self):
         self.optimizer.zero_grad()
 
     def calc_current_learning_rate(self):
-        learning_rate = self.d_model ** (-0.5) * min(self.step_num ** (-0.5),
-                                                     self.step_num * self.warmup_steps ** (-1.5))
-        return learning_rate
+        return self.d_model ** (-0.5) * min(self._step_num ** (-0.5), self._step_num * self.warmup_steps ** (-1.5))
 
     def step(self):
-        current_learning_rate = self.calc_current_learning_rate()
+        self._step_num += 1
+        self.current_learning_rate = self.calc_current_learning_rate()
 
         for group in self.optimizer.param_groups:
-            group['lr'] = current_learning_rate
+            group['lr'] = self.current_learning_rate
 
         self.optimizer.step()
-        self.step_num += 1
 
 
 class LabelSmoothing(nn.Module):

@@ -133,7 +133,7 @@ def get_data_loaders(batch_size, cache_path=DATA_CACHE_PATH):
         train_set, eval_set = get_dataset(split=('train', 'test'), cache_path=DATA_CACHE_PATH)
         train_set, eval_set = train_set.flatten(), eval_set.flatten()
         # create train data pipeline and dataloader
-        train_dp = IterableWrapper(zip(train_set['translation.en'], train_set['translation.de']))
+        train_dp = IterableWrapper(zip(train_set['translation.en'][:2], train_set['translation.de'][:2]))
         train_batch_dp = train_dp.bucketbatch(batch_size=batch_size,
                                               drop_last=False,
                                               batch_num=100,
@@ -142,7 +142,7 @@ def get_data_loaders(batch_size, cache_path=DATA_CACHE_PATH):
         train_loader = DataLoader(dataset=train_batch_dp, shuffle=True, collate_fn=collate_fn)
 
         # create eval data pipeline and dataloader
-        eval_dp = IterableWrapper(zip(eval_set['translation.en'], eval_set['translation.de']))
+        eval_dp = IterableWrapper(zip(eval_set['translation.en'][:2], eval_set['translation.de'][:2]))
         eval_batch_dp = eval_dp.bucketbatch(batch_size=batch_size,
                                             drop_last=False,
                                             batch_num=100,
