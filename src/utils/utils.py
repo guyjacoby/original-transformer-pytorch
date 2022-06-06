@@ -29,16 +29,15 @@ class CustomAdam:
 
 
 class LabelSmoothing(nn.Module):
-    def __init__(self, smoothing, pad_token_id, tgt_vocab_size, device):
+    def __init__(self, smoothing, pad_token_id, tgt_vocab_size):
         super().__init__()
         self.smoothing = smoothing
         self.pad_token_id = pad_token_id
         self.tgt_vocab_size = tgt_vocab_size
-        self.device = device
 
     def forward(self, tgt_ids):
         batch_size = tgt_ids.shape[0]
-        tgt_smoothed_probs = torch.zeros((batch_size, self.tgt_vocab_size), requires_grad=False, device=self.device)
+        tgt_smoothed_probs = torch.zeros((batch_size, self.tgt_vocab_size), requires_grad=False)
 
         # first we fill the probability distribution with 1/(N-2) (-2 because of the target id, and PAD)
         tgt_smoothed_probs.fill_(self.smoothing / (self.tgt_vocab_size - 2))

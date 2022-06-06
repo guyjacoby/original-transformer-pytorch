@@ -1,25 +1,48 @@
 import math
 import torch
 import torch.nn as nn
+from torch.optim import Adam
+import pytorch_lightning as pl
+
 from .transformer import Transformer
+from ..utils.utils import CustomAdam
+from ..utils.constants import *
+from ..utils.utils import LabelSmoothing
+from ..utils.data_utils import get_dataloader, load_tokenizer
 
 
-class TranslationModel(nn.Module):
-    def __init__(self, src_vocab_size, tgt_vocab_size, model_dim=512, num_of_layers=6, num_of_attn_heads=8,
-                 ffn_dim=2048, dropout=0.1, weight_sharing=False):
+class LitTranslationModel(pl.LightningModule):
+    def __init__(self,
+                 model_dim=512,
+                 num_of_layers=6,
+                 num_of_attn_heads=8,
+                 ffn_dim=2048,
+                 dropout=0.1,
+                 weight_sharing=False,
+                 **training_params):
         super().__init__()
-        self.tgt_vocab_size = tgt_vocab_size
+        tokenizer = load_tokenizer(TOKENIZER_PATH)
+        self.pad_token_id = tokenizer.token_to_id(PAD_TOKEN)
+        self.shared_vocab_size = tokenizer.get_vocab_size()
+        self.training_params = training_params
+        self.loss_fn = nn.KLDivLoss(reduction='batchmean')
+        self.label_smoothing = LabelSmoothing(smoothing=DEFAULT_MODEL_LABEL_SMOOTHING,
+                                              pad_token_id=self.pad_token_id,
+                                              tgt_vocab_size=self.shared_vocab_size)
 
-        self.src_embedding = Embedding(src_vocab_size, model_dim)
-        self.tgt_embedding = Embedding(tgt_vocab_size, model_dim)
-
+        # embeddings
+        self.src_embedding = Embedding(self.shared_vocab_size, model_dim)
+        self.tgt_embedding = Embedding(self.shared_vocab_size, model_dim)
         self.src_positional_embedding = PositionalEncoding(model_dim, dropout)
         self.tgt_positional_embedding = PositionalEncoding(model_dim, dropout)
 
+        # encoder-decoder model
         self.transformer = Transformer(model_dim, num_of_layers, num_of_attn_heads, ffn_dim, dropout)
-        
-        self.output_generator = OutputGenerator(model_dim, tgt_vocab_size)
 
+        # linear + log_softmax output
+        self.output_generator = OutputGenerator(model_dim, self.shared_vocab_size)
+
+        # He initialization (check if Xavier works better?)
         self._initialize_parameters()
 
         # weight sharing is argued to be beneficial by reducing overfitting/model size, without hurting performance
@@ -49,6 +72,54 @@ class TranslationModel(nn.Module):
 
         return tgt_log_probs
 
+    def optimizer_step(
+        self,
+        epoch: int,
+        batch_idx: int,
+        optimizer,
+        optimizer_idx: int = 0,
+        optimizer_closure=None,
+        on_tpu: bool = False,
+        using_native_amp: bool = False,
+        using_lbfgs: bool = False,
+    ):
+        for group in optimizer.param_groups:
+            group['lr'] = DEFAULT_MODEL_DIMENSION**(-0.5) * \
+                          min(self.trainer.global_step+1 ** (-0.5),
+                              self.trainer.global_step+1 * self.training_params['warmup_steps']**(-1.5))
+        optimizer.step(closure=optimizer_closure)
+
+    def configure_optimizers(self):
+        optimizer = Adam(self.parameters(), betas=(0.9, 0.98), eps=1e-09)
+        return optimizer
+
+    def training_step(self, batch, batch_idx):
+        src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = batch
+        tgt_ids_output = self(src_ids, tgt_ids_input, src_mask, tgt_mask)
+        smoothed_tgt_ids_label = self.label_smoothing(tgt_ids_label)
+        loss = self.loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
+        self.log('train_loss', loss, prog_bar=True)
+        self.log('tokens', torch.sum(src_mask), prog_bar=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = batch
+        tgt_ids_output = self(src_ids, tgt_ids_input, src_mask, tgt_mask)
+        smoothed_tgt_ids_label = self.label_smoothing(tgt_ids_label)
+        val_loss = self.loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
+        self.log('val_loss', val_loss)
+
+    def train_dataloader(self):
+        train_dataloader = get_dataloader(loader_type='train',
+                                          batch_size=self.training_params['batch_size'],
+                                          cache_path=DATA_CACHE_PATH)
+        return train_dataloader
+
+    def val_dataloader(self):
+        return get_dataloader(loader_type='test',
+                              batch_size=self.training_params['batch_size'],
+                              cache_path=DATA_CACHE_PATH)
+
 
 class Embedding(nn.Module):
     def __init__(self, vocab_size, model_dim):
@@ -76,8 +147,7 @@ class PositionalEncoding(nn.Module):
         self.div_freq = torch.exp(torch.arange(0, model_dim, 2) / model_dim * math.log(1e4))
 
         # initialize positional encoding (pe) tensor
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.pos_enc = torch.zeros((max_sequence_size, model_dim), device=device)
+        self.pos_enc = torch.zeros((max_sequence_size, model_dim))
         self.pos_enc[:, 0::2] = torch.sin(self.pos / self.div_freq)
         self.pos_enc[:, 1::2] = torch.cos(self.pos / self.div_freq)
 
