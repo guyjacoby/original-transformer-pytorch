@@ -11,6 +11,7 @@ class CustomAdam:
         self.d_model = d_model
         self.warmup_steps = warmup_steps
         self._step_num = 0
+        self.current_learning_rate = None
 
     def zero_grad(self):
         self.optimizer.zero_grad()
