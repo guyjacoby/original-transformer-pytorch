@@ -112,6 +112,8 @@ class Lite(LightningLite):
     def eval_model(self, val_loader, model, label_smoothing, loss_fn, **training_params):
         model.eval()
         val_loss = []
+        batch_count = 0
+        i = 1
 
         for batch_idx, val_batch in enumerate(val_loader):
             src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = map(lambda x: x.to(self.device), val_batch)
@@ -119,8 +121,12 @@ class Lite(LightningLite):
             smoothed_tgt_ids_label = label_smoothing(tgt_ids_label)
             loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
             val_loss.append(loss.item())
+            batch_count += 1
+            if (batch_idx + 1) % training_params['log_freq'] == 0:
+                print(np.sum(val_loss) / (training_params['log_freq'] * i))
+                i += 1
 
-        mean_val_loss = np.sum(val_loss) / training_params["val_size"]
+        mean_val_loss = np.sum(val_loss) / batch_count
         print(f'Model evaluation: val_loss = {mean_val_loss}')
         # wandb.log({'val': {'loss': mean_val_loss}}, commit=False)
 
@@ -128,12 +134,12 @@ class Lite(LightningLite):
 if __name__ == '__main__':
     training_params = {}
     training_params['num_epochs'] = 20
-    training_params['train_size'] = 4000  # number of sentence pairs
-    training_params['val_size'] = 20  # entire set
+    training_params['train_size'] = 20  # number of sentence pairs
+    training_params['val_size'] = 20  # -1 for entire set
     training_params['batch_size'] = 10
     training_params['dataset_path'] = DATA_CACHE_PATH
     training_params['warmup_steps'] = 4000
-    training_params['log_freq'] = 2  # number of mini-batches
+    training_params['log_freq'] = 1  # number of mini-batches
     training_params['checkpoint_freq'] = 1  # number of epochs
 
     wandb.config = {
@@ -144,4 +150,4 @@ if __name__ == '__main__':
         'warmup_steps': training_params['warmup_steps']
     }
 
-    Lite(accelerator='auto', strategy='ddp_spawn', devices=5).run(training_params)
+    Lite(accelerator='auto', strategy='ddp', devices=2).run(training_params)
