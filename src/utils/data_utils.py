@@ -118,33 +118,33 @@ def sort_key(bucket):
     return [bucket[i] for i in np.argsort([len(pair[0]) for pair in bucket])]
 
 
-def get_data_loaders(batch_size, cache_path=DATA_CACHE_PATH):
+def _get_dataloader(dataset_type: str, dataset_size: int, batch_size: int, cache_path=DATA_CACHE_PATH):
     if Path(TOKENIZER_PATH / 'tokenizer.json').is_file():
+        dataset = get_dataset(split=dataset_type, cache_path=cache_path)
+        flat_dataset = dataset.flatten()
 
-        train_set, eval_set = get_dataset(split=('train', 'test'), cache_path=cache_path)
-        train_set, eval_set = train_set.flatten(), eval_set.flatten()
         # create train data pipeline and dataloader
-        train_dp = IterableWrapper(zip(train_set['translation.en'][:2], train_set['translation.de'][:2]))
-        train_batch_dp = train_dp.bucketbatch(batch_size=batch_size,
-                                              drop_last=False,
-                                              batch_num=100,
-                                              bucket_num=100,
-                                              sort_key=sort_key)
-        train_loader = DataLoader(dataset=train_batch_dp, shuffle=True, collate_fn=collate_fn)
-
-        # create eval data pipeline and dataloader
-        eval_dp = IterableWrapper(zip(eval_set['translation.en'][:2], eval_set['translation.de'][:2]))
-        eval_batch_dp = eval_dp.bucketbatch(batch_size=batch_size,
-                                            drop_last=False,
-                                            batch_num=100,
-                                            bucket_num=100,
-                                            sort_key=sort_key)
-        eval_loader = DataLoader(dataset=eval_batch_dp, shuffle=True, collate_fn=collate_fn)
-
-        return train_loader, eval_loader
+        dp = IterableWrapper(zip(flat_dataset['translation.en'][:dataset_size],
+                                 flat_dataset['translation.de'][:dataset_size]))
+        batch_dp = dp.bucketbatch(batch_size=batch_size, drop_last=False, batch_num=100, bucket_num=100,
+                                  sort_key=sort_key)
+        dataloader = DataLoader(dataset=batch_dp, shuffle=True, collate_fn=collate_fn)
+        return dataloader
 
     else:
         raise Exception(f'No tokenizer found, please train one first by running {Path(__file__)}.')
+
+
+def get_dataloaders(**training_params):
+    train_dataloader = _get_dataloader(dataset_type='train',
+                                       dataset_size=training_params['train_size'],
+                                       batch_size=training_params['batch_size'],
+                                       cache_path=training_params['dataset_path'])
+    val_dataloader = _get_dataloader(dataset_type='validation',
+                                     dataset_size=training_params['val_size'],
+                                     batch_size=training_params['batch_size'],
+                                     cache_path=training_params['dataset_path'])
+    return train_dataloader, val_dataloader
 
 
 if __name__ == "__main__":
