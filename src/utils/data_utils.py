@@ -16,15 +16,6 @@ TOKENIZER_VOCAB_SIZE = 37_000
 
 
 def get_dataset(split, cache_path=DATA_CACHE_PATH):
-    """
-    Download and/or load the WMT16 English/German dataset from the HuggingFace repository.
-
-    Args:
-        cache_path: Path of directory to write/read the dataset
-
-    Returns: Tuple of flattened dataset splits (each is a PyArrow Dataset object)
-
-    """
     return datasets.load_dataset(path="wmt16", name='de-en', cache_dir=cache_path, split=split)
 
 
@@ -54,7 +45,7 @@ def train_bpe_tokenizer(tokenizer_path=TOKENIZER_PATH, cache_path=DATA_CACHE_PAT
                          special_tokens=[UNK_TOKEN, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN],
                          end_of_word_suffix=SUFFIX)
 
-    train_set = get_dataset(split=('train'), cache_path=cache_path)
+    train_set = get_dataset(split='train', cache_path=cache_path)
     train_set = train_set.flatten()
 
     # noinspection PyTypeChecker
@@ -71,7 +62,7 @@ def load_tokenizer(tokenizer_path):
     return Tokenizer.from_file(str(Path(tokenizer_path / 'tokenizer.json')))
 
 
-def tokenize_batch(tokenizer , batch, is_source, is_pretokenized=False, add_special_tokens=True):
+def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False, add_special_tokens=True):
     if is_source:
         tokenizer.post_processor = TemplateProcessing(single="$0 " + EOS_TOKEN, special_tokens=[(EOS_TOKEN, 2)])
     else:
@@ -130,7 +121,7 @@ def sort_key(bucket):
 def get_data_loaders(batch_size, cache_path=DATA_CACHE_PATH):
     if Path(TOKENIZER_PATH / 'tokenizer.json').is_file():
 
-        train_set, eval_set = get_dataset(split=('train', 'test'), cache_path=DATA_CACHE_PATH)
+        train_set, eval_set = get_dataset(split=('train', 'test'), cache_path=cache_path)
         train_set, eval_set = train_set.flatten(), eval_set.flatten()
         # create train data pipeline and dataloader
         train_dp = IterableWrapper(zip(train_set['translation.en'][:2], train_set['translation.de'][:2]))

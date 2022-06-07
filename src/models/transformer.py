@@ -212,11 +212,11 @@ class FeedForwardNet(nn.Module):
             nn.Linear(ffn_dim, model_dim)
         )
 
-    def forward(self, input):
-        output = self.ffn(input)
+    def forward(self, inputs):
+        output = self.ffn(inputs)
         return output
 
 
 def _get_copies(module, num_of_copies):
-    #     # return num_of_copies deep copies of module
+    # return num_of_copies deep copies of module
     return nn.ModuleList([copy.deepcopy(module) for _ in range(num_of_copies)])
