@@ -139,6 +139,8 @@ class Lite(LightningLite):
     def eval_model(self, val_loader, model, label_smoothing, loss_fn, **training_params):
         model.eval()
         val_loss = []
+        batch_count = 0
+        i = 1
 
         for batch_idx, val_batch in enumerate(val_loader):
             src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = map(lambda x: x.to(self.device), val_batch)
@@ -146,8 +148,16 @@ class Lite(LightningLite):
             smoothed_tgt_ids_label = label_smoothing(tgt_ids_label)
             loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
             val_loss.append(loss.item())
+            batch_count += 1
+            if (batch_idx + 1) % training_params['log_freq'] == 0:
+                print(np.sum(val_loss) / (training_params['log_freq'] * i))
+                i += 1
 
+<<<<<<< HEAD
         mean_val_loss = np.sum(val_loss) / batch_idx
+=======
+        mean_val_loss = np.sum(val_loss) / batch_count
+>>>>>>> 2d1fed284f5acc721bbab06bfa58b2477682eb6a
         print(f'Model evaluation: val_loss = {mean_val_loss}')
         if self.is_global_zero and self.wandb_log:
             wandb.log({'val': {'loss': mean_val_loss}}, commit=False)
@@ -156,6 +166,7 @@ class Lite(LightningLite):
 if __name__ == '__main__':
     training_params = {}
     training_params['num_epochs'] = 20
+<<<<<<< HEAD
     training_params['train_size'] = 400_000  # number of sentence pairs
     training_params['val_size'] = -1  # -1 for entire set
     training_params['batch_size'] = 20
@@ -170,3 +181,22 @@ if __name__ == '__main__':
              devices=4)
              .run(training_params, wandb_log=True, checkpoint_path=MODEL_CHECKPOINTS_PATH / 'checkpoint_epoch_1.ckpt')
     )
+=======
+    training_params['train_size'] = 20  # number of sentence pairs
+    training_params['val_size'] = 20  # -1 for entire set
+    training_params['batch_size'] = 10
+    training_params['dataset_path'] = DATA_CACHE_PATH
+    training_params['warmup_steps'] = 4000
+    training_params['log_freq'] = 1  # number of mini-batches
+    training_params['checkpoint_freq'] = 1  # number of epochs
+
+    wandb.config = {
+        'epochs': training_params['num_epochs'],
+        'train_size': training_params['train_size'],
+        'val_size': training_params['val_size'],
+        'batch_size': training_params['batch_size'],
+        'warmup_steps': training_params['warmup_steps']
+    }
+
+    Lite(accelerator='auto', strategy='ddp', devices=2).run(training_params)
+>>>>>>> 2d1fed284f5acc721bbab06bfa58b2477682eb6a

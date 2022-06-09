@@ -23,6 +23,7 @@ class TranslationModel(nn.Module):
         self._initialize_parameters()
 
         # weight sharing is argued to be beneficial by reducing overfitting/model size, without hurting performance
+        # taken from https://arxiv.org/abs/1608.05859
         if weight_sharing:
             self.src_embedding.embedding.weight = self.tgt_embedding.embedding.weight
             self.output_generator.linear.weight = self.tgt_embedding.embedding.weight
