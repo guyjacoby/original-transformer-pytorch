@@ -5,17 +5,28 @@ from torch import nn
 from torch.optim import Adam
 import wandb
 from pytorch_lightning.lite import LightningLite
+from pytorch_lightning.strategies import DDPStrategy
 
 from src.models.model import TranslationModel
 from src.utils.constants import *
 from src.utils.data_utils import get_dataloaders, load_tokenizer
 from src.utils.utils import CustomLRScheduler, LabelSmoothing
 
-# wandb.init(project="original-transformer-pytorch", entity="guyjacoby")
-
 
 class Lite(LightningLite):
-    def run(self, training_params):
+    def run(self, training_params, wandb_log, checkpoint_path=None):
+        self.wandb_log = wandb_log
+
+        if self.is_global_zero and self.wandb_log:
+            wandb.init(project="original-transformer-pytorch", entity="guyjacoby")
+            wandb.config = {
+                'epochs': training_params['num_epochs'],
+                'train_size': training_params['train_size'],
+                'val_size': training_params['val_size'],
+                'batch_size': training_params['batch_size'],
+                'warmup_steps': training_params['warmup_steps']
+            }
+        
         # get train and val data loaders. the batch size is for the iterable dataset, not the data loader itself
         train_loader, val_loader = get_dataloaders(**training_params)
         train_loader, val_loader = self.setup_dataloaders(train_loader, val_loader)
@@ -49,21 +60,33 @@ class Lite(LightningLite):
         # LightningLite magic
         model, optimizer = self.setup(model, optimizer)
 
+        # load from checkpoint
+        if checkpoint_path is not None:
+            checkpoint = self.load(checkpoint_path)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            last_epoch = checkpoint['epoch']
+            print('Loaded checkpoint successfuly')
+        else:
+            last_epoch = 0
+        
         start_time = time.time()
 
+        if self.is_global_zero and self.wandb_log:
+            wandb.watch(model, log='all', log_freq=training_params['log_freq'])
+
         # training and evaluation loop
-        for epoch in range(1, training_params['num_epochs'] + 1):
-            self.train_epoch(train_loader, model, label_smoothing, kldiv_loss, optimizer, epoch, start_time,
-                             **training_params)
+        for epoch in range(last_epoch + 1, training_params['num_epochs'] + 1):
+            self.train_epoch(train_loader, model, label_smoothing, kldiv_loss, optimizer, epoch, start_time, **training_params)
 
             with torch.no_grad():
                 self.eval_model(val_loader, model, label_smoothing, kldiv_loss, **training_params)
                 # calculate BLEU score
 
-        torch.save(model.state_dict(), Path(MODEL_BINARIES_PATH / 'translation_model.pt'))
+        self.save(model.state_dict(), Path(MODEL_BINARIES_PATH / 'translation_model.pt'))
 
-    def train_epoch(self, train_loader, model, label_smoothing, loss_fn, optimizer, epoch, start_time,
-                    **training_params):
+    def train_epoch(self, train_loader, model, label_smoothing, loss_fn, optimizer, epoch, start_time, **training_params):
         model.train()
         train_loss = []
 
@@ -90,14 +113,14 @@ class Lite(LightningLite):
             train_loss.append(loss.item())
 
             if training_params['log_freq'] is not None and (batch_idx + 1) % training_params['log_freq'] == 0:
-                # wandb.log({'train': {'loss': np.sum(train_loss) / training_params['log_freq'],
-                #                      'tokens': torch.sum(src_mask).item()}})
-                print(f'Model training: elapsed time = {(time.time() - start_time):.1f} secs | '
-                      f'epoch = {epoch} | '
-                      f'batch = {batch_idx + 1}/{np.ceil(training_params["train_size"] / training_params["batch_size"])} | '
-                      f'tokens = {torch.sum(src_mask).item()} | '
-                      f'lr = {self.lr_scheduler._last_lr[0]:.7f} | '
-                      f'train loss = {np.sum(train_loss) / training_params["log_freq"]:.5f}')
+                if self.is_global_zero and self.wandb_log:
+                    wandb.log({'train': {'loss': np.sum(train_loss) / training_params['log_freq'], 'tokens': torch.sum(src_mask).item()}})
+                print(f'Model training: elapsed time = {time.time() - start_time:.1f} secs'
+                      f' | epoch = {epoch}'
+                      f' | batch = {batch_idx + 1} / {int(np.ceil(training_params["train_size"]/training_params["batch_size"]))}'
+                      f' | tokens = {torch.sum(src_mask).item()}'
+                      f' | lr = {self.lr_scheduler._last_lr[0]:.7f}'
+                      f' | train loss = {np.sum(train_loss) / training_params["log_freq"]:.5f}')
                 train_loss = []
 
             # # clear memory
@@ -106,8 +129,12 @@ class Lite(LightningLite):
 
         # save model checkpoint
         if training_params['checkpoint_freq'] is not None and epoch % training_params['checkpoint_freq'] == 0:
-            torch.save(model.state_dict(),
-                       Path(MODEL_CHECKPOINTS_PATH / f'translation_model_checkpoint_epoch_{epoch}.pt'))
+            self.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'lr_scheduler': self.lr_scheduler.state_dict()
+                }, Path(MODEL_CHECKPOINTS_PATH / f'checkpoint_epoch_{epoch}.ckpt'))
 
     def eval_model(self, val_loader, model, label_smoothing, loss_fn, **training_params):
         model.eval()
@@ -120,28 +147,26 @@ class Lite(LightningLite):
             loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
             val_loss.append(loss.item())
 
-        mean_val_loss = np.sum(val_loss) / training_params["val_size"]
+        mean_val_loss = np.sum(val_loss) / batch_idx
         print(f'Model evaluation: val_loss = {mean_val_loss}')
-        # wandb.log({'val': {'loss': mean_val_loss}}, commit=False)
+        if self.is_global_zero and self.wandb_log:
+            wandb.log({'val': {'loss': mean_val_loss}}, commit=False)
 
 
 if __name__ == '__main__':
     training_params = {}
     training_params['num_epochs'] = 20
-    training_params['train_size'] = 4000  # number of sentence pairs
-    training_params['val_size'] = 20  # entire set
-    training_params['batch_size'] = 10
+    training_params['train_size'] = 400_000  # number of sentence pairs
+    training_params['val_size'] = -1  # -1 for entire set
+    training_params['batch_size'] = 20
     training_params['dataset_path'] = DATA_CACHE_PATH
     training_params['warmup_steps'] = 4000
-    training_params['log_freq'] = 2  # number of mini-batches
+    training_params['log_freq'] = 100  # number of mini-batches
     training_params['checkpoint_freq'] = 1  # number of epochs
-
-    wandb.config = {
-        'epochs': training_params['num_epochs'],
-        'train_size': training_params['train_size'],
-        'val_size': training_params['val_size'],
-        'batch_size': training_params['batch_size'],
-        'warmup_steps': training_params['warmup_steps']
-    }
-
-    Lite(accelerator='auto', strategy='ddp_spawn', devices=5).run(training_params)
+    
+    (
+        Lite(accelerator='gpu', 
+             strategy=DDPStrategy(find_unused_parameters=False, static_graph=True), 
+             devices=4)
+             .run(training_params, wandb_log=True, checkpoint_path=MODEL_CHECKPOINTS_PATH / 'checkpoint_epoch_1.ckpt')
+    )

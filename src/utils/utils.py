@@ -4,8 +4,6 @@ from functools import wraps
 import warnings
 import weakref
 
-from torch.optim.optimizer import Optimizer
-
 from .constants import *
 from .data_utils import tokenize_batch, create_target_mask
 

@@ -10,7 +10,7 @@ from tokenizers.normalizers import NFD, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
 
-from .constants import *
+from src.utils.constants import *
 
 TOKENIZER_VOCAB_SIZE = 37_000
 
