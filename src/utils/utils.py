@@ -7,15 +7,6 @@ import weakref
 from .constants import *
 from .data_utils import tokenize_batch, create_target_mask
 
-EPOCH_DEPRECATION_WARNING = (
-    "The epoch parameter in `scheduler.step()` was not necessary and is being "
-    "deprecated where possible. Please use `scheduler.step()` to step the "
-    "scheduler. During the deprecation, if epoch is different from None, the "
-    "closed form is used instead of the new chainable form, where available. "
-    "Please open an issue if you are unable to replicate your use case: "
-    "https://github.com/pytorch/pytorch/issues/new/choose."
-)
-
 
 class CustomAdam:
     def __init__(self, optimizer, d_model=512, warmup_steps=4000):
@@ -78,11 +69,17 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
 
     while not all(is_decoded):
 
-        tgt_ids_input, tgt_pad_mask = tokenize_batch(tokenizer, target_token_sequences, is_source=False,
-                                                     is_pretokenized=True, add_special_tokens=False)
+        tgt_ids_input = [[tokenizer.token_to_id(token) for token in tokens] for tokens in target_token_sequences]
+        tgt_pad_mask = [[True if token!=PAD_TOKEN else False for token in tokens] for tokens in target_token_sequences]
+        # tgt_ids_input, tgt_pad_mask = tokenize_batch(tokenizer, target_token_sequences, is_source=False,
+        #                                              is_pretokenized=True, add_special_tokens=False)
+        tgt_ids_input= torch.tensor(tgt_ids_input, dtype=torch.int)
+        tgt_pad_mask = torch.tensor(tgt_pad_mask, dtype=torch.bool)
         tgt_mask = create_target_mask(tgt_pad_mask)
         tgt_ids_input, tgt_mask = tgt_ids_input.to(device), tgt_mask.to(device)
-        tgt_decoded = model.transformer.decoder(src_encoder_output, tgt_ids_input, src_mask, tgt_mask)
+
+        tgt_input = model.tgt_positional_embedding(model.tgt_embedding(tgt_ids_input))
+        tgt_decoded = model.transformer.decoder(src_encoder_output, tgt_input, src_mask, tgt_mask)
         target_log_probs = model.output_generator(tgt_decoded)
 
         # get the log probability distribution of the last tokens for each sentence
@@ -97,7 +94,7 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
         for i in range(batch_size):
             token = tokenizer.id_to_token(last_token_indices[i])
             target_token_sequences[i].append(token)
-            if token == PAD_TOKEN:
+            if token == EOS_TOKEN:
                 is_decoded[i] = True
 
         if len(target_token_sequences[0]) == MAX_TOKEN_LEN:
@@ -108,7 +105,7 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
                                       is_source=False,
                                       is_pretokenized=True,
                                       add_special_tokens=False)
-    translations = tokenizer.decode_batch(tgt_ids_input)
+    translations = tokenizer.decode_batch(tgt_ids_input.tolist())
 
     return translations
 
