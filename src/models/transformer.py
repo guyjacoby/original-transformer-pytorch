@@ -3,9 +3,16 @@ import math
 import torch
 import torch.nn as nn
 
+from ..utils.constants import *
+
 
 class Transformer(nn.Module):
-    def __init__(self, model_dim=512, num_of_layers=6, attn_heads=8, ffn_dim=2048, dropout=0.1):
+    def __init__(self,
+                 model_dim: int = DEFAULT_MODEL_DIMENSION,
+                 num_of_layers: int = DEFAULT_MODEL_NUMBER_OF_LAYERS,
+                 attn_heads: int = DEFAULT_MODEL_NUMBER_OF_HEADS,
+                 ffn_dim: int = DEFAULT_MODEL_FFN_DIMENSION,
+                 dropout: float = DEFAULT_MODEL_DROPOUT):
         super().__init__()
 
         encoder_layer = EncoderLayer(model_dim, attn_heads, ffn_dim, dropout)
@@ -26,7 +33,7 @@ class Transformer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, encoder_layer, num_of_layers):
+    def __init__(self, encoder_layer, num_of_layers: int):
         super().__init__()
         self.encoder_stack = _get_copies(encoder_layer, num_of_layers)
 
@@ -37,7 +44,7 @@ class Encoder(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, model_dim, attn_heads, ffn_dim, dropout):
+    def __init__(self, model_dim: int, attn_heads: int, ffn_dim: int, dropout: float):
         super().__init__()
 
         self.mha = MultiHeadAttention(model_dim, attn_heads)
@@ -63,7 +70,7 @@ class EncoderLayer(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, decoder_layer, num_of_layers):
+    def __init__(self, decoder_layer, num_of_layers: int):
         super().__init__()
         self.decoder_stack = _get_copies(decoder_layer, num_of_layers)
 
@@ -74,7 +81,7 @@ class Decoder(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, model_dim, attn_heads, ffn_dim, dropout):
+    def __init__(self, model_dim: int, attn_heads: int, ffn_dim: int, dropout: float):
         super().__init__()
 
         self.masked_mha = MultiHeadAttention(model_dim, attn_heads)
@@ -114,7 +121,11 @@ class DecoderLayer(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, model_dim, attn_heads, dropout=None, get_attn_weights=False):
+    def __init__(self,
+                 model_dim: int,
+                 attn_heads: int,
+                 dropout: Optional[float] = None,
+                 get_attn_weights: bool = False):
         super().__init__()
 
         assert model_dim % attn_heads == 0, (
@@ -203,7 +214,7 @@ class MultiHeadAttention(nn.Module):
 
 
 class FeedForwardNet(nn.Module):
-    def __init__(self, model_dim, ffn_dim, dropout):
+    def __init__(self, model_dim: int, ffn_dim: int, dropout: float):
         super().__init__()
         self.ffn = nn.Sequential(
             nn.Linear(model_dim, ffn_dim),
@@ -217,6 +228,6 @@ class FeedForwardNet(nn.Module):
         return output
 
 
-def _get_copies(module, num_of_copies):
+def _get_copies(module, num_of_copies: int):
     # return num_of_copies deep copies of module
     return nn.ModuleList([copy.deepcopy(module) for _ in range(num_of_copies)])

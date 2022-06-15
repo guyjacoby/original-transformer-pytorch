@@ -3,33 +3,10 @@ from torch import nn
 from functools import wraps
 import warnings
 import weakref
+from nltk.translate import bleu_score
 
 from .constants import *
 from .data_utils import tokenize_batch, create_target_mask
-
-
-class CustomAdam:
-    def __init__(self, optimizer, d_model=512, warmup_steps=4000):
-        self.optimizer = optimizer
-        self.d_model = d_model
-        self.warmup_steps = warmup_steps
-        self._step_num = 0
-        self.current_learning_rate = None
-
-    def zero_grad(self):
-        self.optimizer.zero_grad()
-
-    def calc_current_learning_rate(self):
-        return self.d_model ** (-0.5) * min(self._step_num ** (-0.5), self._step_num * self.warmup_steps ** (-1.5))
-
-    def step(self):
-        self._step_num += 1
-        self.current_learning_rate = self.calc_current_learning_rate()
-
-        for group in self.optimizer.param_groups:
-            group['lr'] = self.current_learning_rate
-
-        self.optimizer.step()
 
 
 class LabelSmoothing(nn.Module):
@@ -70,10 +47,10 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
     while not all(is_decoded):
 
         tgt_ids_input = [[tokenizer.token_to_id(token) for token in tokens] for tokens in target_token_sequences]
-        tgt_pad_mask = [[True if token!=PAD_TOKEN else False for token in tokens] for tokens in target_token_sequences]
+        tgt_pad_mask = [[True if token != PAD_TOKEN else False for token in tokens] for tokens in target_token_sequences]
         # tgt_ids_input, tgt_pad_mask = tokenize_batch(tokenizer, target_token_sequences, is_source=False,
         #                                              is_pretokenized=True, add_special_tokens=False)
-        tgt_ids_input= torch.tensor(tgt_ids_input, dtype=torch.int)
+        tgt_ids_input = torch.tensor(tgt_ids_input, dtype=torch.int)
         tgt_pad_mask = torch.tensor(tgt_pad_mask, dtype=torch.bool)
         tgt_mask = create_target_mask(tgt_pad_mask)
         tgt_ids_input, tgt_mask = tgt_ids_input.to(device), tgt_mask.to(device)
@@ -110,7 +87,7 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
     return translations
 
 
-def bleu_score():
+def calculate_bleu_score(model, dataloader, tokenizer):
     pass
 
 
@@ -192,20 +169,6 @@ class _LRScheduler(object):
         # Compute learning rate using chainable form of the scheduler
         raise NotImplementedError
 
-    def print_lr(self, is_verbose, group, lr, epoch=None):
-        """Display the current learning rate.
-        """
-        if is_verbose:
-            if epoch is None:
-                print('Adjusting learning rate'
-                      ' of group {} to {:.4e}.'.format(group, lr))
-            else:
-                epoch_str = ("%.2f" if isinstance(epoch, float) else
-                             "%.5d") % epoch
-                print('Epoch {}: adjusting learning rate'
-                      ' of group {} to {:.4e}.'.format(epoch_str, group, lr))
-
-
     def step(self, epoch=None):
         # Raise a warning if old pattern is detected
         # https://github.com/pytorch/pytorch/issues/20124
@@ -245,7 +208,6 @@ class _LRScheduler(object):
         for i, data in enumerate(zip(self.optimizer.param_groups, values)):
             param_group, lr = data
             param_group['lr'] = lr
-            self.print_lr(self.verbose, i, lr, epoch)
 
         self._last_lr = [group['lr'] for group in self.optimizer.param_groups]
 

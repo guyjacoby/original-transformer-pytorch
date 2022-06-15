@@ -1,12 +1,21 @@
 import math
 import torch
 import torch.nn as nn
+
 from .transformer import Transformer
+from ..utils.constants import *
 
 
 class TranslationModel(nn.Module):
-    def __init__(self, src_vocab_size, tgt_vocab_size, model_dim=512, num_of_layers=6, num_of_attn_heads=8,
-                 ffn_dim=2048, dropout=0.1, weight_sharing=False):
+    def __init__(self,
+                 src_vocab_size: int,
+                 tgt_vocab_size: int,
+                 model_dim: int = DEFAULT_MODEL_DIMENSION,
+                 num_of_layers: int = DEFAULT_MODEL_NUMBER_OF_LAYERS,
+                 num_of_attn_heads: int = DEFAULT_MODEL_NUMBER_OF_HEADS,
+                 ffn_dim: int = DEFAULT_MODEL_FFN_DIMENSION,
+                 dropout: float = DEFAULT_MODEL_DROPOUT,
+                 weight_sharing: bool = False):
         super().__init__()
         self.tgt_vocab_size = tgt_vocab_size
 
@@ -52,7 +61,7 @@ class TranslationModel(nn.Module):
 
 
 class Embedding(nn.Module):
-    def __init__(self, vocab_size, model_dim):
+    def __init__(self, vocab_size: int, model_dim: int):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, model_dim)
         self.scaling_factor = math.sqrt(model_dim)
@@ -69,7 +78,7 @@ class Embedding(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, model_dim, dropout, max_sequence_size=10_000):
+    def __init__(self, model_dim: int, dropout: float, max_sequence_size: int = 10_000):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
 
@@ -97,7 +106,7 @@ class PositionalEncoding(nn.Module):
 
 
 class OutputGenerator(nn.Module):
-    def __init__(self, model_dim, tgt_vocab_size):
+    def __init__(self, model_dim: int, tgt_vocab_size: int):
         super().__init__()
         self.tgt_vocab_size = tgt_vocab_size
         self.linear = nn.Linear(model_dim, tgt_vocab_size, bias=False)

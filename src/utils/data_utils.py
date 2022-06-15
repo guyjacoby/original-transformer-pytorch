@@ -1,30 +1,28 @@
-import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torchdata.datapipes.iter import IterableWrapper
-import datasets
+from datasets import load_dataset
 from tokenizers import Tokenizer, normalizers, decoders
 from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
 from tokenizers.normalizers import NFD, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
+from datargs import parse
 
 from src.utils.constants import *
 
-TOKENIZER_VOCAB_SIZE = 37_000
+
+def get_dataset(split):
+    return load_dataset(path="wmt16", name='de-en', cache_dir=DATA_CACHE_PATH, split=split)
 
 
-def get_dataset(split, cache_path=DATA_CACHE_PATH):
-    return datasets.load_dataset(path="wmt16", name='de-en', cache_dir=cache_path, split=split)
-
-
-def initialize_tokenizer():
+def initialize_tokenizer(max_token_length: int):
     tokenizer = Tokenizer(BPE(unk_token=UNK_TOKEN, end_of_word_suffix=SUFFIX))
 
     # padding and truncation
     tokenizer.enable_padding(pad_id=3, pad_token=PAD_TOKEN)
-    tokenizer.enable_truncation(max_length=MAX_TOKEN_LEN)
+    tokenizer.enable_truncation(max_length=max_token_length)
 
     # normalization
     tokenizer.normalizer = normalizers.Sequence([NFD(), Lowercase(), StripAccents()])
@@ -38,15 +36,14 @@ def initialize_tokenizer():
     return tokenizer
 
 
-def train_bpe_tokenizer(tokenizer_path=TOKENIZER_PATH, cache_path=DATA_CACHE_PATH):
-    tokenizer = initialize_tokenizer()
-    trainer = BpeTrainer(vocab_size=TOKENIZER_VOCAB_SIZE,
+def train_bpe_tokenizer(train_size: int, vocab_size: int, max_token_length: int, tokenizer_path: Path = TOKENIZER_PATH):
+    tokenizer = initialize_tokenizer(max_token_length)
+    trainer = BpeTrainer(vocab_size=vocab_size,
                          show_progress=True,
                          special_tokens=[UNK_TOKEN, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN],
                          end_of_word_suffix=SUFFIX)
-
-    train_set = get_dataset(split='train', cache_path=cache_path)
-    train_set = train_set.flatten()
+    train_set = get_dataset(split='train')
+    train_set = train_set.flatten()[:train_size]
 
     # noinspection PyTypeChecker
     def batch_iterator(batch_size=5000):
@@ -54,7 +51,6 @@ def train_bpe_tokenizer(tokenizer_path=TOKENIZER_PATH, cache_path=DATA_CACHE_PAT
             yield train_set[i: i + batch_size]['translation.en'] + train_set[i: i + batch_size]['translation.de']
 
     tokenizer.train_from_iterator(batch_iterator(), trainer=trainer, length=len(train_set))
-
     tokenizer.save(str(Path(tokenizer_path / 'tokenizer.json')))
 
 
@@ -64,9 +60,12 @@ def load_tokenizer(tokenizer_path):
 
 def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False, add_special_tokens=True):
     if is_source:
-        tokenizer.post_processor = TemplateProcessing(single="$0 " + EOS_TOKEN, special_tokens=[(EOS_TOKEN, 2)])
+        tokenizer.post_processor = TemplateProcessing(single="$0 " + EOS_TOKEN,
+                                                      pair=None,
+                                                      special_tokens=[(EOS_TOKEN, 2)])
     else:
         tokenizer.post_processor = TemplateProcessing(single=BOS_TOKEN + " $0 " + EOS_TOKEN,
+                                                      pair=None,
                                                       special_tokens=[(BOS_TOKEN, 1), (EOS_TOKEN, 2)])
 
     encodings = tokenizer.encode_batch(batch, is_pretokenized=is_pretokenized, add_special_tokens=add_special_tokens)
@@ -118,10 +117,14 @@ def sort_key(bucket):
     return [bucket[i] for i in np.argsort([len(pair[0]) for pair in bucket])]
 
 
-def _get_dataloader(dataset_type: str, dataset_size: int, batch_size: int, cache_path=DATA_CACHE_PATH):
+def _get_dataloader(dataset_type: str, dataset_size: Optional[int], batch_size: int):
     if Path(TOKENIZER_PATH / 'tokenizer.json').is_file():
-        dataset = get_dataset(split=dataset_type, cache_path=cache_path)
+        dataset = get_dataset(split=dataset_type)
         flat_dataset = dataset.flatten()
+
+        # -1 for all elements in list of samples
+        if dataset_size is None:
+            dataset_size = -1
 
         # create train data pipeline and dataloader
         dp = IterableWrapper(zip(flat_dataset['translation.en'][:dataset_size],
@@ -135,19 +138,28 @@ def _get_dataloader(dataset_type: str, dataset_size: int, batch_size: int, cache
         raise Exception(f'No tokenizer found, please train one first by running {Path(__file__)}.')
 
 
-def get_dataloaders(**training_params):
-    train_dataloader = _get_dataloader(dataset_type='train',
-                                       dataset_size=training_params['train_size'],
-                                       batch_size=training_params['batch_size'],
-                                       cache_path=training_params['dataset_path'])
-    val_dataloader = _get_dataloader(dataset_type='validation',
-                                     dataset_size=training_params['val_size'],
-                                     batch_size=training_params['batch_size'],
-                                     cache_path=training_params['dataset_path'])
+def get_dataloaders(train_size: int, val_size: Optional[int], batch_size: int):
+    train_dataloader = _get_dataloader(dataset_type='train', dataset_size=train_size, batch_size=batch_size)
+    val_dataloader = _get_dataloader(dataset_type='validation', dataset_size=val_size, batch_size=batch_size)
     return train_dataloader, val_dataloader
 
 
-if __name__ == "__main__":
-    # train new tokenizer on iwslt 2015,2016
-    train_bpe_tokenizer()
+@dataclass
+class TrainTokenizerParams:
+    train_size: int = arg(default=400_000, help="number of sentence pairs to train tokenizer on, default is 400K")
+    vocab_size: int = arg(default=TOKENIZER_VOCAB_SIZE, help=f"tokenizer vocabulary size, default is "
+                                                             f"{TOKENIZER_VOCAB_SIZE}")
+    max_token_length: int = arg(default=MAX_TOKEN_LEN, help=f"maximum number of tokens in tokenized sentence, default "
+                                                            f"is {MAX_TOKEN_LEN}")
+
+
+def main():
+    # train new tokenizer on WMT16
+    train_tokenizer_params = parse(TrainTokenizerParams)
+    train_bpe_tokenizer(train_size=train_tokenizer_params.train_size, vocab_size=train_tokenizer_params.vocab_size,
+                        max_token_length=train_tokenizer_params.max_token_length)
     print(f'Trained and saved the BPE tokenizer.')
+
+
+if __name__ == "__main__":
+    main()
