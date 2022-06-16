@@ -7,7 +7,23 @@ from src.utils.data_utils import load_tokenizer, tokenize_batch
 from src.utils.utils import greedy_decoding
 
 
-def translate_batch(batch):
+def translate_batch(batch, model, tokenizer):
+    src_ids, src_mask = tokenize_batch(tokenizer, batch, is_source=True)
+    batch_size, src_seq_length = src_ids.shape
+    src_mask = src_mask.reshape(batch_size, 1, 1, src_seq_length) == 1
+
+    model.eval()
+    with torch.no_grad():
+        src_input = model.src_positional_embedding(model.src_embedding(src_ids))
+        src_encoder_output = model.transformer.encoder(src_input, src_mask)
+        translations = greedy_decoding(model, tokenizer, src_encoder_output, src_mask, 'cpu')
+
+    return translations
+
+
+def main():
+    test_batch = ["What a beautiful day", "hello world"]
+
     tokenizer = load_tokenizer(TOKENIZER_PATH)
     shared_vocab_size = tokenizer.get_vocab_size()
 
@@ -22,20 +38,13 @@ def translate_batch(batch):
                              ffn_dim=DEFAULT_MODEL_FFN_DIMENSION,
                              dropout=DEFAULT_MODEL_DROPOUT,
                              weight_sharing=True)
-
     model.load_state_dict(torch_state_dict)
 
-    src_ids, src_mask = tokenize_batch(tokenizer, batch, is_source=True)
-    batch_size, src_seq_length = src_ids.shape
-    src_mask = src_mask.reshape(batch_size, 1, 1, src_seq_length) == 1
+    translations = translate_batch(test_batch, model, tokenizer)
 
-    model.eval()
+    for i in range(len(test_batch)):
+        print(f'Source: {test_batch[i]}\nTranslation: {translations[i]}\n')
 
-    src_input = model.src_positional_embedding(model.src_embedding(src_ids))
-    src_encoder_output = model.transformer.encoder(src_input, src_mask)
-
-    translation = greedy_decoding(model, tokenizer, src_encoder_output, src_mask, 'cpu')
 
 if __name__ == "__main__":
-    test_batch = ["What a beautiful day", "hello world"]
-    translate_batch(test_batch)
+    main()

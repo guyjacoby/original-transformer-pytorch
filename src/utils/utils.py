@@ -36,6 +36,12 @@ class LabelSmoothing(nn.Module):
         return tgt_smoothed_probs
 
 
+def _clean_translations(batch):
+    batch = [translation.replace(' .', '.') for translation in batch]
+    batch = [translation.replace(' ,', ',') for translation in batch]
+    return batch
+
+
 def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
     batch_size = src_encoder_output.shape[0]
 
@@ -47,9 +53,8 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
     while not all(is_decoded):
 
         tgt_ids_input = [[tokenizer.token_to_id(token) for token in tokens] for tokens in target_token_sequences]
-        tgt_pad_mask = [[True if token != PAD_TOKEN else False for token in tokens] for tokens in target_token_sequences]
-        # tgt_ids_input, tgt_pad_mask = tokenize_batch(tokenizer, target_token_sequences, is_source=False,
-        #                                              is_pretokenized=True, add_special_tokens=False)
+        tgt_pad_mask = [[True if token != PAD_TOKEN else False for token in tokens]
+                        for tokens in target_token_sequences]
         tgt_ids_input = torch.tensor(tgt_ids_input, dtype=torch.int)
         tgt_pad_mask = torch.tensor(tgt_pad_mask, dtype=torch.bool)
         tgt_mask = create_target_mask(tgt_pad_mask)
@@ -77,13 +82,17 @@ def greedy_decoding(model, tokenizer, src_encoder_output, src_mask, device):
         if len(target_token_sequences[0]) == MAX_TOKEN_LEN:
             break
 
-    tgt_ids_input, _ = tokenize_batch(tokenizer,
-                                      target_token_sequences,
-                                      is_source=False,
-                                      is_pretokenized=True,
-                                      add_special_tokens=False)
-    translations = tokenizer.decode_batch(tgt_ids_input.tolist())
+    # remove tokens after EOS
+    final_sequences = []
+    for seq in target_token_sequences:
+        try:
+            final_sequences.append(seq[:seq.index('[EOS]')])
+        except:
+            final_sequences.append(seq)
 
+    tgt_ids_input = [[tokenizer.token_to_id(token) for token in seq] for seq in final_sequences]
+    translations = tokenizer.decode_batch(tgt_ids_input)
+    translations = _clean_translations(translations)
     return translations
 
 
@@ -92,7 +101,6 @@ def calculate_bleu_score(model, dataloader, tokenizer):
 
 
 class _LRScheduler(object):
-
     def __init__(self, optimizer, last_epoch=-1, verbose=False):
         self.optimizer = optimizer
 
@@ -190,7 +198,6 @@ class _LRScheduler(object):
         self._step_count += 1
 
         class _enable_get_lr_call:
-
             def __init__(self, o):
                 self.o = o
 
