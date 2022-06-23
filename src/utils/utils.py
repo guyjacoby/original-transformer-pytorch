@@ -3,10 +3,10 @@ from torch import nn
 from functools import wraps
 import warnings
 import weakref
-from nltk.translate import bleu_score
+from nltk.translate.bleu_score import corpus_bleu
 
 from .constants import *
-from .data_utils import tokenize_batch, create_target_mask
+from .data_utils import create_target_mask
 
 
 class LabelSmoothing(nn.Module):
