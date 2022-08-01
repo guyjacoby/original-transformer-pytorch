@@ -7,7 +7,7 @@ from pytorch_lightning.lite import LightningLite
 
 from .constants import *
 from .data_utils import get_dataloaders, load_tokenizer
-from .utils import CustomLRScheduler, LabelSmoothing
+from .utils import CustomLRScheduler, LabelSmoothing, calculate_bleu_score
 from .types import batch
 from ..models.model import TranslationModel
 
@@ -30,6 +30,7 @@ class LiteModel(LightningLite):
                   f' | batch = {batch_idx + 1} / {self.total_batches}'
                   f' | lr = {lr_scheduler._last_lr[0]:.7f}'
                   f' | train loss = {mean_train_loss:.5f}')
+
             if self.is_global_zero and self.wandb_log:
                 wandb.log({'train': {'loss': mean_train_loss}})
         else:
@@ -83,7 +84,7 @@ class LiteModel(LightningLite):
                 'lr_scheduler': lr_scheduler.state_dict()},
                 Path(MODEL_CHECKPOINTS_PATH / f'checkpoint_epoch_{epoch}.ckpt'))
 
-    def _eval_model(self, val_loader, model, label_smoothing, loss_fn, epoch):
+    def _eval_model(self, val_loader, model, label_smoothing, loss_fn, epoch, tokenizer):
         model.eval()
         val_loss = []
         val_batch_count = 0
@@ -95,6 +96,8 @@ class LiteModel(LightningLite):
             loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
             val_loss.append(loss.item())
             val_batch_count += 1
+
+        # bleu_score = calculate_bleu_score(model, val_loader, tokenizer)
 
         self._logging(epoch, val_batch_count, val_loss, is_train=False)
 
@@ -168,8 +171,8 @@ class LiteModel(LightningLite):
             print('No checkpoint used')
 
         # sending model weights and gradients to wandb
-        if self.is_global_zero and self.wandb_log:
-            wandb.watch(model, log='all', log_freq=training_params.log_freq)
+        # if self.is_global_zero and self.wandb_log:
+        #     wandb.watch(model, log='all', log_freq=training_params.log_freq)
 
         # start time for elapsed training time
         self.start_time = time.time()
@@ -178,9 +181,9 @@ class LiteModel(LightningLite):
         for epoch in range(self.last_epoch + 1, training_params.num_epochs + 1):
             self._train_epoch(train_loader, model, label_smoothing, kldiv_loss, optimizer, lr_scheduler, epoch)
 
-            with torch.no_grad():
-                self._eval_model(val_loader, model, label_smoothing, kldiv_loss, epoch)
-                # calculate BLEU score
+            if self.is_global_zero:
+                with torch.no_grad():
+                    self._eval_model(val_loader, model, label_smoothing, kldiv_loss, epoch, tokenizer)
 
         # save model at the end of training
         self.save(model.state_dict(), Path(MODEL_BINARIES_PATH / 'translation_model.pl'))

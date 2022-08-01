@@ -202,7 +202,7 @@ class MultiHeadAttention(nn.Module):
 
         attn_output, attn_weights = self.attention(query, key, value, mask)
 
-        if self.get_attn_weights is True:
+        if self.get_attn_weights:
             self.attn_weights = attn_weights
 
         # Reshape the multi-head projections back into original shape for output projection

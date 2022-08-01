@@ -118,7 +118,7 @@ def sort_key(bucket):
 
 
 def _get_dataloader(dataset_type: str, dataset_size: Optional[int], batch_size: int):
-    if Path(TOKENIZER_PATH / 'tokenizer.json').is_file():
+    if Path(TOKENIZER_PATH / 'tokenizer.json').exists():
         dataset = get_dataset(split=dataset_type)
         flat_dataset = dataset.flatten()
 
@@ -156,7 +156,8 @@ class TrainTokenizerParams:
 def main():
     # train new tokenizer on WMT16
     train_tokenizer_params = parse(TrainTokenizerParams)
-    train_bpe_tokenizer(train_size=train_tokenizer_params.train_size, vocab_size=train_tokenizer_params.vocab_size,
+    train_bpe_tokenizer(train_size=train_tokenizer_params.train_size,
+                        vocab_size=train_tokenizer_params.vocab_size,
                         max_token_length=train_tokenizer_params.max_token_length)
     print(f'Trained and saved the BPE tokenizer.')
 

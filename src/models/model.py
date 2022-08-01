@@ -27,7 +27,7 @@ class TranslationModel(nn.Module):
 
         self.transformer = Transformer(model_dim, num_of_layers, num_of_attn_heads, ffn_dim, dropout)
         
-        self.output_generator = OutputGenerator(model_dim, tgt_vocab_size)
+        self.output_generator = OutputGenerator(model_dim, tgt_vocab_size, weight_sharing)
 
         self._initialize_parameters()
 
@@ -86,8 +86,6 @@ class PositionalEncoding(nn.Module):
         self.div_freq = torch.exp(torch.arange(0, model_dim, 2) / model_dim * math.log(1e4))
 
         # initialize positional encoding (pe) tensor
-        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # self.pos_enc = torch.zeros((max_sequence_size, model_dim), device=device)
         self.pos_enc = torch.zeros((max_sequence_size, model_dim))
         self.pos_enc[:, 0::2] = torch.sin(self.pos / self.div_freq)
         self.pos_enc[:, 1::2] = torch.cos(self.pos / self.div_freq)
@@ -106,10 +104,11 @@ class PositionalEncoding(nn.Module):
 
 
 class OutputGenerator(nn.Module):
-    def __init__(self, model_dim: int, tgt_vocab_size: int):
+    def __init__(self, model_dim: int, tgt_vocab_size: int, weight_sharing: bool):
         super().__init__()
         self.tgt_vocab_size = tgt_vocab_size
-        self.linear = nn.Linear(model_dim, tgt_vocab_size, bias=False)
+        bias = False if weight_sharing else True
+        self.linear = nn.Linear(model_dim, tgt_vocab_size, bias=bias)
         self.log_softmax = nn.LogSoftmax(dim=-1)
 
     def forward(self, tgt):
