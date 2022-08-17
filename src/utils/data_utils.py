@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torchdata.datapipes.iter import IterableWrapper
@@ -8,13 +9,16 @@ from tokenizers.trainers import BpeTrainer
 from tokenizers.normalizers import NFD, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
-from datargs import parse
+from typing import Optional
+from datargs import parse, arg
+from dataclasses import dataclass
+from loguru import logger
 
 from src.utils.constants import *
 
 
 def get_dataset(split):
-    return load_dataset(path="wmt16", name='de-en', cache_dir=DATA_CACHE_PATH, split=split)
+    return load_dataset(path="wmt14", name='de-en', cache_dir=DATA_CACHE_PATH, split=split)
 
 
 def initialize_tokenizer(max_token_length: int):
@@ -36,7 +40,9 @@ def initialize_tokenizer(max_token_length: int):
     return tokenizer
 
 
-def train_bpe_tokenizer(train_size: int, vocab_size: int, max_token_length: int, tokenizer_path: Path = TOKENIZER_PATH):
+def train_bpe_tokenizer(train_size: int, vocab_size: int, max_token_length: int):
+    logger.info('Initializing BPE tokenizer...')
+    logger.info(f'train size = {train_size} | vocab size = {vocab_size}  max token length = {max_token_length}')
     tokenizer = initialize_tokenizer(max_token_length)
     trainer = BpeTrainer(vocab_size=vocab_size,
                          show_progress=True,
@@ -45,17 +51,23 @@ def train_bpe_tokenizer(train_size: int, vocab_size: int, max_token_length: int,
     train_set = get_dataset(split='train')
     train_set = train_set.flatten()[:train_size]
 
-    # noinspection PyTypeChecker
     def batch_iterator(batch_size=5000):
         for i in range(0, len(train_set), batch_size):
             yield train_set[i: i + batch_size]['translation.en'] + train_set[i: i + batch_size]['translation.de']
 
+    logger.info('Training tokenizer...')
     tokenizer.train_from_iterator(batch_iterator(), trainer=trainer, length=len(train_set))
-    tokenizer.save(str(Path(tokenizer_path / 'tokenizer.json')))
+    logger.info('Finished training tokenizer')
+    return tokenizer
 
 
-def load_tokenizer(tokenizer_path):
-    return Tokenizer.from_file(str(Path(tokenizer_path / 'tokenizer.json')))
+def save_tokenizer(tokenizer, tokenizer_path: Path = TOKENIZER_PATH):
+    tokenizer.save(str(tokenizer_path / 'tokenizer.json'))
+    logger.info(f'Saved tokenizer to {tokenizer_path.absolute()}')
+
+
+def load_tokenizer(tokenizer_path: Path = TOKENIZER_PATH):
+    return Tokenizer.from_file(str(tokenizer_path / 'tokenizer.json'))
 
 
 def tokenize_batch(tokenizer, batch, is_source, is_pretokenized=False, add_special_tokens=True):
@@ -156,10 +168,10 @@ class TrainTokenizerParams:
 def main():
     # train new tokenizer on WMT16
     train_tokenizer_params = parse(TrainTokenizerParams)
-    train_bpe_tokenizer(train_size=train_tokenizer_params.train_size,
-                        vocab_size=train_tokenizer_params.vocab_size,
-                        max_token_length=train_tokenizer_params.max_token_length)
-    print(f'Trained and saved the BPE tokenizer.')
+    tokenizer = train_bpe_tokenizer(train_size=train_tokenizer_params.train_size,
+                                    vocab_size=train_tokenizer_params.vocab_size,
+                                    max_token_length=train_tokenizer_params.max_token_length)
+    save_tokenizer(tokenizer)
 
 
 if __name__ == "__main__":

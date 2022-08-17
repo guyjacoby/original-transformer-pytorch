@@ -2,6 +2,7 @@ import copy
 import math
 import torch
 import torch.nn as nn
+from typing import Optional
 
 from ..utils.constants import *
 
