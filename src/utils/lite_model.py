@@ -83,7 +83,7 @@ class LiteModel(LightningLite):
         loss = loss_fn(tgt_ids_output, smoothed_tgt_ids_label)
         self.backward(loss)
 
-        # step optimizer and lr scheduler
+        # step the optimizer and lr scheduler
         optimizer.step()
         lr_scheduler.step()
 
