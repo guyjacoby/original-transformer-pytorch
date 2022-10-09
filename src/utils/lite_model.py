@@ -23,8 +23,6 @@ class LiteModel(LightningLite):
                  **kwargs):
         super().__init__(**kwargs)
         self.num_epochs = training_params.num_epochs
-        self.train_size = training_params.train_size
-        self.val_size = training_params.val_size
         self.batch_size = training_params.batch_size
         self.warmup_steps = training_params.warmup_steps
         self.log_freq = training_params.log_freq
@@ -38,8 +36,6 @@ class LiteModel(LightningLite):
             wandb.init(project="original-transformer-pytorch", entity="guyjacoby")
             wandb.config = {
                 'epochs': self.num_epochs,
-                'train_size': self.train_size,
-                'val_size': self.val_size,
                 'batch_size': self.batch_size,
                 'warmup_steps': self.warmup_steps
             }
@@ -165,10 +161,8 @@ class LiteModel(LightningLite):
 
         # get dataloaders and use LightningLite magic
         logger.info('Loading datasets...')
-        train_loader, val_loader = get_dataloaders(train_size=self.train_size,
-                                                   val_size=self.val_size,
-                                                   batch_size=self.batch_size)
-        train_loader, val_loader = self.setup_dataloaders(train_loader, val_loader)
+        train_loader, val_loader, test_loader = get_dataloaders(batch_size=self.batch_size)
+        train_loader, val_loader, test_loader = self.setup_dataloaders(train_loader, val_loader, test_loader)
 
         # power-up model and optimizer using LightningLite magic
         model, optimizer = self.setup(model, optimizer)

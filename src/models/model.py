@@ -40,7 +40,7 @@ class TranslationModel(nn.Module):
     def _initialize_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
-                nn.init.kaiming_uniform_(p, nonlinearity='relu')
+                nn.init.kaiming_normal_(p, nonlinearity='relu')
 
     def forward(self, src_token_ids, tgt_token_ids, src_mask, tgt_mask):
         # Embed source/target tokens with learned embeddings

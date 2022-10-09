@@ -3,7 +3,6 @@ from torch import nn
 from functools import wraps
 import warnings
 import weakref
-from nltk.translate.bleu_score import corpus_bleu
 
 
 class LabelSmoothing(nn.Module):
