@@ -15,15 +15,16 @@ class TranslationModel(nn.Module):
                  num_of_attn_heads: int = DEFAULT_MODEL_NUMBER_OF_HEADS,
                  ffn_dim: int = DEFAULT_MODEL_FFN_DIMENSION,
                  dropout: float = DEFAULT_MODEL_DROPOUT,
-                 weight_sharing: bool = False):
+                 weight_sharing: bool = False,
+                 device: str = 'cpu'):
         super().__init__()
         self.tgt_vocab_size = tgt_vocab_size
 
         self.src_embedding = Embedding(src_vocab_size, model_dim)
         self.tgt_embedding = Embedding(tgt_vocab_size, model_dim)
 
-        self.src_positional_embedding = PositionalEncoding(model_dim, dropout)
-        self.tgt_positional_embedding = PositionalEncoding(model_dim, dropout)
+        self.src_positional_embedding = PositionalEncoding(model_dim, dropout, device)
+        self.tgt_positional_embedding = PositionalEncoding(model_dim, dropout, device)
 
         self.transformer = Transformer(model_dim, num_of_layers, num_of_attn_heads, ffn_dim, dropout)
         
@@ -78,7 +79,7 @@ class Embedding(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, model_dim: int, dropout: float, max_sequence_size: int = 10_000):
+    def __init__(self, model_dim: int, dropout: float, device: str, max_sequence_size: int = 10_000):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
 
@@ -86,7 +87,7 @@ class PositionalEncoding(nn.Module):
         self.div_freq = torch.exp(torch.arange(0, model_dim, 2) / model_dim * math.log(1e4))
 
         # initialize positional encoding (pe) tensor
-        self.pos_enc = torch.zeros((max_sequence_size, model_dim))
+        self.pos_enc = torch.zeros((max_sequence_size, model_dim), device=device)
         self.pos_enc[:, 0::2] = torch.sin(self.pos / self.div_freq)
         self.pos_enc[:, 1::2] = torch.cos(self.pos / self.div_freq)
 
