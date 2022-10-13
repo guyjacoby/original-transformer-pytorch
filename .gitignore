@@ -143,3 +143,6 @@ dmypy.json
 
 # weights and biases
 /wandb
+
+# tensorboard
+/runs

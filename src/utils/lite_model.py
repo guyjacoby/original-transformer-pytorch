@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from torch.nn import KLDivLoss
 from torch.optim import Adam
+from torch.utils.tensorboard import SummaryWriter
 from pytorch_lightning.lite import LightningLite
 from typing import Optional
 from dataclasses import dataclass
@@ -19,7 +20,6 @@ class LiteModel(LightningLite):
     def __init__(self,
                  training_params: dataclass,
                  wandb_log: bool = False,
-                 checkpoint_path: Optional[Path] = None,
                  **kwargs):
         super().__init__(**kwargs)
         self.num_epochs = training_params.num_epochs
@@ -29,7 +29,9 @@ class LiteModel(LightningLite):
         self.checkpoint_freq = training_params.checkpoint_freq
         self.total_batches = training_params.calculate_total_batches()
         self.wandb_log = wandb_log
-        self.checkpoint_path = checkpoint_path
+        self.checkpoint_path = Path(training_params.checkpoint_path) if training_params.checkpoint_path is not None else None
+        self.debug = training_params.debug
+        self.debug_data = {}
 
         # wandb init
         if self.is_global_zero and self.wandb_log:
@@ -39,6 +41,8 @@ class LiteModel(LightningLite):
                 'batch_size': self.batch_size,
                 'warmup_steps': self.warmup_steps
             }
+
+        # self.writer = SummaryWriter()
 
     def _load_checkpoint(self, model, optimizer, lr_scheduler, checkpoint_path: Path):
         checkpoint = self.load(checkpoint_path)
@@ -53,7 +57,7 @@ class LiteModel(LightningLite):
             mean_train_loss = np.sum(loss) / self.log_freq
             logger.info(f'Model training: epoch = {epoch}'
                         f' | batch = {batch_num} / {self.total_batches}'
-                        f' | lr = {lr_scheduler._last_lr[0]:.7f}'
+                        # f' | lr = {lr_scheduler._last_lr[0]:.7f}'
                         f' | train loss = {mean_train_loss:.5f}')
 
             if self.is_global_zero and self.wandb_log:
@@ -64,6 +68,16 @@ class LiteModel(LightningLite):
 
             if self.is_global_zero and self.wandb_log:
                 wandb.log({'val': {'loss': mean_val_loss}}, commit=False)
+
+    def _collect_debugging_data(self, model, lr_scheduler):
+        # grad_update_ratios_for_weights = [((lr_scheduler.get_last_lr()[0] * p.grad.std()) / p.std()).log10().item()
+        #                                   for p in model.parameters() if p.ndim == 2]
+        grad_update_ratios_for_weights = [((0.001 * p.grad.std()) / p.std()).log10().item()
+                                          for p in model.parameters() if p.ndim == 2]
+        if self.debug_data.get('grad_ud_ratio') is None:
+            self.debug_data['grad_ud_ratio'] = [grad_update_ratios_for_weights]
+        else:
+            self.debug_data['grad_ud_ratio'].append(grad_update_ratios_for_weights)
 
     def _train_step(self, train_batch: batch, model, optimizer, lr_scheduler, label_smoothing, loss_fn):
         src_ids, tgt_ids_input, tgt_ids_label, src_mask, tgt_mask = train_batch
@@ -85,7 +99,7 @@ class LiteModel(LightningLite):
 
         # step the optimizer and lr scheduler
         optimizer.step()
-        lr_scheduler.step()
+        # lr_scheduler.step()
 
         return loss.item()
 
@@ -100,6 +114,12 @@ class LiteModel(LightningLite):
             if self.log_freq is not None and (batch_idx + 1) % self.log_freq == 0:
                 self._logging(epoch, batch_idx + 1, train_loss, is_train=True, lr_scheduler=lr_scheduler)
                 train_loss = []
+
+            if self.debug:
+                self._collect_debugging_data(model, lr_scheduler)
+
+            if batch_idx == 150:
+                1
 
         # save model checkpoint
         if self.checkpoint_freq is not None and epoch % self.checkpoint_freq == 0:
@@ -142,7 +162,7 @@ class LiteModel(LightningLite):
                                  num_of_attn_heads=DEFAULT_MODEL_NUMBER_OF_HEADS,
                                  ffn_dim=DEFAULT_MODEL_FFN_DIMENSION,
                                  dropout=DEFAULT_MODEL_DROPOUT,
-                                 weight_sharing=True)
+                                 padding_idx=tokenizer.token_to_id(PAD_TOKEN))
 
         # Label smoothing layer for target labels
         label_smoothing = LabelSmoothing(smoothing=DEFAULT_MODEL_LABEL_SMOOTHING,
@@ -154,11 +174,12 @@ class LiteModel(LightningLite):
         kldiv_loss = KLDivLoss(reduction='batchmean')
 
         # Adam optimizer with custom learning rate scheduler as in paper
-        optimizer = Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09)
-        lr_scheduler = CustomLRScheduler(optimizer,
-                                         d_model=DEFAULT_MODEL_DIMENSION,
-                                         warmup_steps=self.warmup_steps)
-
+        # optimizer = Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09)
+        # lr_scheduler = CustomLRScheduler(optimizer,
+        #                                  d_model=DEFAULT_MODEL_DIMENSION,
+        #                                  warmup_steps=self.warmup_steps)
+        optimizer = Adam(model.parameters())
+        lr_scheduler = None
         # get dataloaders and use LightningLite magic
         logger.info('Loading datasets...')
         train_loader, val_loader, test_loader = get_dataloaders(batch_size=self.batch_size)

@@ -15,13 +15,14 @@ class TranslationModel(nn.Module):
                  num_of_attn_heads: int = DEFAULT_MODEL_NUMBER_OF_HEADS,
                  ffn_dim: int = DEFAULT_MODEL_FFN_DIMENSION,
                  dropout: float = DEFAULT_MODEL_DROPOUT,
-                 weight_sharing: bool = False,
+                 padding_idx: int = 3,
+                 weight_sharing: bool = True,
                  device: str = 'cpu'):
         super().__init__()
         self.tgt_vocab_size = tgt_vocab_size
 
-        self.src_embedding = Embedding(src_vocab_size, model_dim)
-        self.tgt_embedding = Embedding(tgt_vocab_size, model_dim)
+        self.src_embedding = Embedding(src_vocab_size, model_dim, padding_idx)
+        self.tgt_embedding = Embedding(tgt_vocab_size, model_dim, padding_idx)
 
         self.src_positional_embedding = PositionalEncoding(model_dim, dropout, device)
         self.tgt_positional_embedding = PositionalEncoding(model_dim, dropout, device)
@@ -62,9 +63,9 @@ class TranslationModel(nn.Module):
 
 
 class Embedding(nn.Module):
-    def __init__(self, vocab_size: int, model_dim: int):
+    def __init__(self, vocab_size: int, model_dim: int, padding_idx: int):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, model_dim)
+        self.embedding = nn.Embedding(vocab_size, model_dim, padding_idx=padding_idx)
         self.scaling_factor = math.sqrt(model_dim)
 
     def forward(self, token_ids):
