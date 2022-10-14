@@ -3,7 +3,6 @@ import torch
 import numpy as np
 from torch.nn import KLDivLoss
 from torch.optim import Adam
-from torch.utils.tensorboard import SummaryWriter
 from pytorch_lightning.lite import LightningLite
 from typing import Optional
 from dataclasses import dataclass
@@ -11,7 +10,7 @@ from loguru import logger
 
 from .constants import *
 from .data_utils import get_dataloaders, load_tokenizer
-from .train_utils import CustomLRScheduler, LabelSmoothing, calculate_bleu_score
+from .train_utils import CustomLRScheduler, LabelSmoothing
 from .data_types import batch
 from ..models.model import TranslationModel
 
@@ -42,8 +41,6 @@ class LiteModel(LightningLite):
                 'warmup_steps': self.warmup_steps
             }
 
-        # self.writer = SummaryWriter()
-
     def _load_checkpoint(self, model, optimizer, lr_scheduler, checkpoint_path: Path):
         checkpoint = self.load(checkpoint_path)
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -57,7 +54,7 @@ class LiteModel(LightningLite):
             mean_train_loss = np.sum(loss) / self.log_freq
             logger.info(f'Model training: epoch = {epoch}'
                         f' | batch = {batch_num} / {self.total_batches}'
-                        # f' | lr = {lr_scheduler._last_lr[0]:.7f}'
+                        f' | lr = {lr_scheduler._last_lr[0]:.7f}'
                         f' | train loss = {mean_train_loss:.5f}')
 
             if self.is_global_zero and self.wandb_log:
@@ -70,9 +67,7 @@ class LiteModel(LightningLite):
                 wandb.log({'val': {'loss': mean_val_loss}}, commit=False)
 
     def _collect_debugging_data(self, model, lr_scheduler):
-        # grad_update_ratios_for_weights = [((lr_scheduler.get_last_lr()[0] * p.grad.std()) / p.std()).log10().item()
-        #                                   for p in model.parameters() if p.ndim == 2]
-        grad_update_ratios_for_weights = [((0.001 * p.grad.std()) / p.std()).log10().item()
+        grad_update_ratios_for_weights = [((lr_scheduler.get_last_lr()[0] * p.grad.std()) / p.std()).log10().item()
                                           for p in model.parameters() if p.ndim == 2]
         if self.debug_data.get('grad_ud_ratio') is None:
             self.debug_data['grad_ud_ratio'] = [grad_update_ratios_for_weights]
@@ -99,7 +94,7 @@ class LiteModel(LightningLite):
 
         # step the optimizer and lr scheduler
         optimizer.step()
-        # lr_scheduler.step()
+        lr_scheduler.step()
 
         return loss.item()
 
@@ -117,9 +112,6 @@ class LiteModel(LightningLite):
 
             if self.debug:
                 self._collect_debugging_data(model, lr_scheduler)
-
-            if batch_idx == 150:
-                1
 
         # save model checkpoint
         if self.checkpoint_freq is not None and epoch % self.checkpoint_freq == 0:
@@ -164,6 +156,8 @@ class LiteModel(LightningLite):
                                  dropout=DEFAULT_MODEL_DROPOUT,
                                  padding_idx=tokenizer.token_to_id(PAD_TOKEN))
 
+        logger.info(f'The model has {model._count_parameters():,} trainable parameters')
+
         # Label smoothing layer for target labels
         label_smoothing = LabelSmoothing(smoothing=DEFAULT_MODEL_LABEL_SMOOTHING,
                                          pad_token_id=tokenizer.token_to_id(PAD_TOKEN),
@@ -174,12 +168,11 @@ class LiteModel(LightningLite):
         kldiv_loss = KLDivLoss(reduction='batchmean')
 
         # Adam optimizer with custom learning rate scheduler as in paper
-        # optimizer = Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09)
-        # lr_scheduler = CustomLRScheduler(optimizer,
-        #                                  d_model=DEFAULT_MODEL_DIMENSION,
-        #                                  warmup_steps=self.warmup_steps)
-        optimizer = Adam(model.parameters())
-        lr_scheduler = None
+        optimizer = Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09)
+        lr_scheduler = CustomLRScheduler(optimizer,
+                                         d_model=DEFAULT_MODEL_DIMENSION,
+                                         warmup_steps=self.warmup_steps)
+
         # get dataloaders and use LightningLite magic
         logger.info('Loading datasets...')
         train_loader, val_loader, test_loader = get_dataloaders(batch_size=self.batch_size)

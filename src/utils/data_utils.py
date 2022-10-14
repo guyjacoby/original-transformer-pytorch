@@ -8,7 +8,6 @@ from tokenizers.trainers import BpeTrainer
 from tokenizers.normalizers import NFD, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
-from typing import Optional, Union, Tuple
 from datargs import parse, arg
 from dataclasses import dataclass
 from loguru import logger

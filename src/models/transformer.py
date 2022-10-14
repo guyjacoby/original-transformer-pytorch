@@ -154,7 +154,7 @@ class MultiHeadAttention(nn.Module):
         else:
             self.dropout = None
 
-    def attention(self, query, key, value, mask):
+    def _attention(self, query, key, value, mask):
         # scaled dot-product attention
         attn_scores = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.head_dim)
 
@@ -197,11 +197,11 @@ class MultiHeadAttention(nn.Module):
         key = self.key_proj(key)
         value = self.value_proj(value)
 
-        query = query.reshape(batch_size, -1, self.attn_heads, self.head_dim).transpose(1, 2)
-        key = key.reshape(batch_size, -1, self.attn_heads, self.head_dim).transpose(1, 2)
-        value = value.reshape(batch_size, -1, self.attn_heads, self.head_dim).transpose(1, 2)
+        query = query.view(batch_size, -1, self.attn_heads, self.head_dim).transpose(1, 2)
+        key = key.view(batch_size, -1, self.attn_heads, self.head_dim).transpose(1, 2)
+        value = value.view(batch_size, -1, self.attn_heads, self.head_dim).transpose(1, 2)
 
-        attn_output, attn_weights = self.attention(query, key, value, mask)
+        attn_output, attn_weights = self._attention(query, key, value, mask)
 
         if self.get_attn_weights:
             self.attn_weights = attn_weights

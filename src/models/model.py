@@ -17,7 +17,7 @@ class TranslationModel(nn.Module):
                  dropout: float = DEFAULT_MODEL_DROPOUT,
                  padding_idx: int = 3,
                  weight_sharing: bool = True,
-                 device: str = 'cpu'):
+                 device: torch.device = torch.device('cpu')):
         super().__init__()
         self.tgt_vocab_size = tgt_vocab_size
 
@@ -41,8 +41,11 @@ class TranslationModel(nn.Module):
 
     def _initialize_parameters(self):
         for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.kaiming_normal_(p, nonlinearity='relu')
+            if p.ndim == 2:
+                nn.init.xavier_uniform_(p)
+
+    def _count_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
     def forward(self, src_token_ids, tgt_token_ids, src_mask, tgt_mask):
         # Embed source/target tokens with learned embeddings
@@ -72,7 +75,6 @@ class Embedding(nn.Module):
         assert token_ids.ndim == 2, (
             f"Expected 2 dimensions for batch token ids (batch size, max sequence length), got {token_ids.shape}"
         )
-
         embeddings = self.embedding(token_ids)
 
         # As in the paper, the learned embeddings are scaled by a factor of sqrt(model_dim)
@@ -80,20 +82,20 @@ class Embedding(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, model_dim: int, dropout: float, device: str, max_sequence_size: int = 10_000):
+    def __init__(self, model_dim: int, dropout: float, device: torch.device, max_sequence_size: int = 10_000):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
 
-        self.pos = torch.arange(max_sequence_size).reshape(-1, 1)
-        self.div_freq = torch.exp(torch.arange(0, model_dim, 2) / model_dim * math.log(1e4))
+        pos = torch.arange(max_sequence_size).reshape(-1, 1)
+        div_freq = torch.exp(torch.arange(0, model_dim, 2) / model_dim * math.log(1e4))
 
         # initialize positional encoding (pe) tensor
-        self.pos_enc = torch.zeros((max_sequence_size, model_dim), device=device)
-        self.pos_enc[:, 0::2] = torch.sin(self.pos / self.div_freq)
-        self.pos_enc[:, 1::2] = torch.cos(self.pos / self.div_freq)
+        pos_enc = torch.zeros((max_sequence_size, model_dim), device=device)
+        pos_enc[:, 0::2] = torch.sin(pos / div_freq)
+        pos_enc[:, 1::2] = torch.cos(pos / div_freq)
 
         # register positional encodings so that they would appear in state_dict of model
-        self.register_buffer('positional_encodings', self.pos_enc)
+        self.register_buffer('pos_enc', pos_enc)
 
     def forward(self, embeddings):
         assert embeddings.ndim == 3 and embeddings.shape[-1] == self.pos_enc.shape[1], (
